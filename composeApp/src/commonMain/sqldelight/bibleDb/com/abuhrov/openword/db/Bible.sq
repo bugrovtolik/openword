@@ -1,0 +1,34 @@
+CREATE TABLE books (
+    book_color TEXT,
+    book_number INTEGER PRIMARY KEY,
+    short_name TEXT,
+    long_name TEXT
+);
+
+CREATE TABLE info (
+    name TEXT,
+    value TEXT
+);
+
+CREATE TABLE verses (
+    book_number INTEGER NOT NULL,
+    chapter INTEGER NOT NULL,
+    verse INTEGER NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (book_number, chapter, verse)
+);
+
+getBooks:
+SELECT
+    books.book_number,
+    books.long_name,
+    MAX(verses.chapter) AS chapter_count
+FROM books
+JOIN verses ON verses.book_number = books.book_number
+GROUP BY books.book_number
+ORDER BY books.book_number;
+
+getVerses:
+SELECT * FROM verses
+WHERE book_number = ? AND chapter = ?
+ORDER BY verse;

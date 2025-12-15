@@ -1,0 +1,29 @@
+CREATE TABLE lexicon (
+    strong_code TEXT NOT NULL PRIMARY KEY,
+    original_word TEXT,
+    transliteration TEXT,
+    morphology TEXT,
+    gloss TEXT NOT NULL,
+    definition TEXT
+);
+
+CREATE TABLE strong_codes_by_verse (
+    book_id INTEGER NOT NULL,
+    chapter_id INTEGER NOT NULL,
+    verse_id INTEGER NOT NULL,
+    original_word TEXT NOT NULL,
+    strong_code TEXT NOT NULL
+);
+
+CREATE INDEX idx_strong_codes_by_verse ON strong_codes_by_verse(book_id, chapter_id, verse_id);
+CREATE INDEX idx_lexicon_code ON lexicon(strong_code);
+
+getVocabularyForVerse:
+SELECT
+    strong_code,
+    original_word
+FROM strong_codes_by_verse
+WHERE book_id = ? AND chapter_id = ? AND verse_id = ?;
+
+getLexiconDefinition:
+SELECT * FROM lexicon WHERE strong_code = ?;
