@@ -7,3 +7,5 @@
 /iosApp/iosApp.xcodeproj/project.xcworkspace
 /iosApp/iosApp.xcodeproj/xcuserdata
 local.properties
+/.kotlin/metadata/kotlinTransformedCInteropMetadataLibraries
+/.kotlin/metadata/kotlinTransformedMetadataLibraries
