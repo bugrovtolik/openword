@@ -26,13 +26,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # --- 1. Inject API Key ---
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
       - name: Create local.properties
         run: |
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > local.properties
           echo "sdk.dir=$ANDROID_SDK_ROOT" >> local.properties
 
-      # --- 2. Build Android (Check for errors & create APK) ---
+      # --- 2. Build Android ---
       - name: Build Android Debug APK
         run: ./gradlew :composeApp:assembleDebug
 
@@ -45,6 +47,11 @@ jobs:
       # --- 3. Build Web (JS) ---
       - name: Build Kotlin/JS Web
         run: ./gradlew :composeApp:jsBrowserDistribution
+
+      - name: Fix Web Artifacts (Copy index.html)
+        run: |
+          cp composeApp/src/jsMain/resources/index.html composeApp/build/dist/js/productionExecutable/index.html
+          ls -R composeApp/build/dist/js/productionExecutable/
 
       # --- 4. Deploy Web to GitHub Pages ---
       - name: Deploy to GitHub Pages
