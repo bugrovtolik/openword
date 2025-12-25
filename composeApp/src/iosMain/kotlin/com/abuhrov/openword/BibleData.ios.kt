@@ -1,11 +1,19 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package com.abuhrov.openword
 
+import androidx.compose.ui.text.font.FontFamily
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import openword.composeapp.generated.resources.OpenSans
+import openword.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.Font
 import platform.Foundation.*
 
-actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default // or IO if available
+actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
+
+actual suspend fun loadAppFont(): FontFamily? = FontFamily(Font(Res.font.OpenSans))
 
 actual suspend fun checkDatabaseFile(name: String): Boolean {
     val fileManager = NSFileManager.defaultManager
@@ -13,24 +21,30 @@ actual suspend fun checkDatabaseFile(name: String): Boolean {
     return fileManager.fileExistsAtPath(dbPath)
 }
 
-@OptIn(ExperimentalForeignApi::class)
-actual suspend fun installDatabaseFile(name: String) {
-    val fileManager = NSFileManager.defaultManager
+actual suspend fun installDatabaseFile(name: String, resourcePath: String) {
     val dbPath = getDatabasePath(name)
+    val fileManager = NSFileManager.defaultManager
 
-    // Find resource in the Bundle
-    // Compose Multiplatform puts resources in "compose-resources/files"
-    val resourcePath = NSBundle.mainBundle.resourcePath + "/compose-resources/files/$name"
+    val bundlePath = NSBundle.mainBundle.resourcePath
+    val fileEnumerator = fileManager.enumeratorAtPath(bundlePath!!)
 
-    if (fileManager.fileExistsAtPath(resourcePath)) {
-        // Direct file copy (Zero RAM usage)
-        fileManager.copyItemAtPath(resourcePath, dbPath, null)
+    var foundPath: String? = null
+    var file: String? = fileEnumerator?.nextObject() as? String
+    while (file != null) {
+        if (file.endsWith(name, ignoreCase = true)) {
+            foundPath = "$bundlePath/$file"
+            break
+        }
+        file = fileEnumerator?.nextObject() as? String
+    }
+
+    if (foundPath != null) {
+        fileManager.copyItemAtPath(foundPath, dbPath, null)
     } else {
-        throw Exception("Database resource not found at $resourcePath")
+        throw Exception("Database resource $name not found in Bundle")
     }
 }
 
-@OptIn(ExperimentalForeignApi::class)
 private fun getDatabasePath(name: String): String {
     val paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
     val directory = paths.first() as String

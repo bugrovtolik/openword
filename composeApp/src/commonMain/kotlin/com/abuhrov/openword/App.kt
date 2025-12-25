@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -30,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -39,18 +42,43 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// NavMode is now defined in BibleDialogs.kt
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App() {
+    var currentFont by remember { mutableStateOf<FontFamily?>(null) }
+
+    LaunchedEffect(Unit) {
+        currentFont = loadAppFont()
+    }
+
+    val appTypography = Typography().run {
+        copy(
+            displayLarge = displayLarge.copy(fontFamily = currentFont),
+            displayMedium = displayMedium.copy(fontFamily = currentFont),
+            displaySmall = displaySmall.copy(fontFamily = currentFont),
+            headlineLarge = headlineLarge.copy(fontFamily = currentFont),
+            headlineMedium = headlineMedium.copy(fontFamily = currentFont),
+            headlineSmall = headlineSmall.copy(fontFamily = currentFont),
+            titleLarge = titleLarge.copy(fontFamily = currentFont),
+            titleMedium = titleMedium.copy(fontFamily = currentFont),
+            titleSmall = titleSmall.copy(fontFamily = currentFont),
+            bodyLarge = bodyLarge.copy(fontFamily = currentFont),
+            bodyMedium = bodyMedium.copy(fontFamily = currentFont),
+            bodySmall = bodySmall.copy(fontFamily = currentFont),
+            labelLarge = labelLarge.copy(fontFamily = currentFont),
+            labelMedium = labelMedium.copy(fontFamily = currentFont),
+            labelSmall = labelSmall.copy(fontFamily = currentFont)
+        )
+    }
+
     MaterialTheme(
         colorScheme = lightColorScheme(
             primary = Color(0xFF5D4037),
             onPrimary = Color.White,
             primaryContainer = Color(0xFFD7CCC8),
             background = Color(0xFFF5F5F5)
-        )
+        ),
+        typography = appTypography
     ) {
         // App State
         var bible by remember { mutableStateOf<Bible?>(null) }
@@ -70,6 +98,13 @@ fun App() {
         var selectedVerseForMenu by remember { mutableStateOf<Verse?>(null) }
         var showVocabularyForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentVocabularyList by remember { mutableStateOf<List<LexiconEntry>>(emptyList()) }
+
+        // Commentaries State
+        var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
+        var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
+
+        // AI State
+        var showAIPopupForVerse by remember { mutableStateOf<Verse?>(null) }
 
         // Detailed Definition State
         var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
@@ -115,7 +150,6 @@ fun App() {
                     selectedVerse = 1L
                 }
             } catch (e: Exception) {
-                println("Error loading bible: $e")
                 loadError = e.message
                 bible = null
             } finally {
@@ -151,12 +185,27 @@ fun App() {
                         selectedDefinition = null
                     }
                 } catch (e: Exception) {
-                    println("Error loading vocabulary: $e")
                     currentVocabularyList = emptyList()
                 }
             } else {
                 currentVocabularyList = emptyList()
                 selectedDefinition = null
+            }
+        }
+
+        // 4. Load Commentaries
+        LaunchedEffect(showCommentariesForVerse) {
+            if (showCommentariesForVerse != null && selectedBook != null) {
+                try {
+                    val comments = withContext(Dispatchers.Default) {
+                        getCommentariesForVerse(showCommentariesForVerse!!)
+                    }
+                    currentCommentariesList = comments
+                } catch (_: Exception) {
+                    currentCommentariesList = emptyList()
+                }
+            } else {
+                currentCommentariesList = emptyList()
             }
         }
 
@@ -175,7 +224,7 @@ fun App() {
 
                         val locationLabel = if (selectedBook != null) {
                             "${selectedBook!!.name} $selectedChapter:$selectedVerse"
-                        } else "Select Book"
+                        } else "Оберіть книгу"
 
                         TopBarButton(locationLabel) {
                             navMode = NavMode.BOOK
@@ -262,16 +311,29 @@ fun App() {
                                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                BubbleActionButton(Icons.Default.ContentCopy, "Copy") {
+                                                BubbleActionButton(Icons.Default.ContentCopy, "Копіювати") {
                                                     val rawText = "${selectedBook!!.name} $selectedChapter:${verse.number}\n${stripTags(verse.text)}"
                                                     clipboardManager.setText(AnnotatedString(rawText))
                                                     selectedVerseForMenu = null
                                                 }
                                                 VerticalDivider(modifier = Modifier.height(24.dp), color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
-                                                BubbleActionButton(Icons.Default.MenuBook, "Comments") { selectedVerseForMenu = null }
+
+                                                BubbleActionButton(Icons.AutoMirrored.Filled.MenuBook, "Коментарі") {
+                                                    showCommentariesForVerse = verse
+                                                    selectedVerseForMenu = null
+                                                }
+
                                                 VerticalDivider(modifier = Modifier.height(24.dp), color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
-                                                BubbleActionButton(Icons.Default.School, "Vocabulary") {
+
+                                                BubbleActionButton(Icons.Default.School, "Словник") {
                                                     showVocabularyForVerse = verse
+                                                    selectedVerseForMenu = null
+                                                }
+
+                                                VerticalDivider(modifier = Modifier.height(24.dp), color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
+
+                                                BubbleActionButton(Icons.Default.AutoAwesome, "AI") {
+                                                    showAIPopupForVerse = verse
                                                     selectedVerseForMenu = null
                                                 }
                                             }
@@ -283,9 +345,9 @@ fun App() {
                     }
                 } else {
                     Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Failed to load Bible data.")
+                        Text("Не вдалося завантажити текст Біблії.")
                         if (bible != null && selectedBook == null) {
-                            Text("No books found in this translation.", style = MaterialTheme.typography.bodySmall)
+                            Text("В цьому перекладі бракує книг.", style = MaterialTheme.typography.bodySmall)
                         }
                         if (loadError != null) {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -296,7 +358,6 @@ fun App() {
             }
         }
 
-        // --- VOCABULARY POPUP ---
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
                 selectedBookName = selectedBook?.name,
@@ -312,7 +373,23 @@ fun App() {
             )
         }
 
-        // --- DIALOGS ---
+        if (showCommentariesForVerse != null) {
+            CommentariesPopup(
+                bookName = selectedBook?.name,
+                chapter = selectedChapter,
+                verse = showCommentariesForVerse!!.number,
+                commentaries = currentCommentariesList,
+                onDismiss = { showCommentariesForVerse = null }
+            )
+        }
+
+        if (showAIPopupForVerse != null) {
+            AIPopup(
+                verseRef = "${selectedBook?.name} $selectedChapter:${showAIPopupForVerse!!.number}\n${stripTags(showAIPopupForVerse!!.text)}",
+                onDismiss = { showAIPopupForVerse = null }
+            )
+        }
+
         if (showTranslationSelection) {
             TranslationSelectionDialog(
                 availableTranslations = availableTranslations,

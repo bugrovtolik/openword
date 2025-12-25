@@ -1,0 +1,14 @@
+CREATE TABLE commentary (
+    book_number INTEGER,
+    chapter INTEGER,
+    verse_start INTEGER,
+    verse_end INTEGER,
+    text TEXT
+);
+
+CREATE INDEX bookChapterVerseIndex ON commentary (book_number, chapter, verse_start);
+
+getCommentariesForVerse:
+SELECT *
+FROM commentary
+WHERE book_number = ? AND chapter = ? AND verse_start <= ? AND verse_end >= ?;

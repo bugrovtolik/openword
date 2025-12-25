@@ -1,23 +1,28 @@
 package com.abuhrov.openword
 
-import com.abuhrov.openword.db.BibleDb
-import com.abuhrov.openword.db.DatabaseDriverFactory
-import com.abuhrov.openword.db.LexiconDb
+import androidx.compose.ui.text.font.FontFamily
+import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
+import com.abuhrov.openword.db.*
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-// Matches: H1234, H1234a, H1234G, G5678 (Case Insensitive)
 private val STRONGS_PATTERN = Regex("[HG]\\d+[A-Za-z]*")
 private val ROOT_WORD_PATTERN = Regex("\\{([^}]+)\\}")
-private const val LEXICON_DB_NAME = "lexicon.SQLite3"
+private const val LEXICON_DB_NAME = "vocabulary/lexicon.SQLite3"
 
 val availableTranslations = listOf(
-    Translation("CUV", "Український (CUV)", "CUV.SQLite3"),
-    Translation("KJV", "Англійський (KJV)", "KJV.SQLite3"),
-    Translation("UBIO", "Український (Огієнко)", "UBIO.SQLite3"),
-    Translation("NUP", "Український (НУП)", "NUP.SQLite3")
+    Translation("CUV", "Український (CUV)", "translations/CUV.SQLite3"),
+    Translation("KJV", "Англійський (KJV)", "translations/KJV.SQLite3"),
+    Translation("UBIO", "Український (Огієнко)", "translations/UBIO.SQLite3"),
+    Translation("NUP", "Український (НУП)", "translations/NUP.SQLite3")
+)
+
+val availableCommentaries = listOf(
+    CommentarySource("Огієнко", "commentaries/UBIO.commentaries.SQLite3"),
+    CommentarySource("БКІК", "commentaries/IVP.SQLite3"),
+    CommentarySource("Далас", "commentaries/constable.SQLite3")
 )
 
 data class Translation(val id: String, val displayName: String, val fileName: String)
@@ -32,21 +37,30 @@ data class LexiconEntry(
     val definition: String?
 )
 
+data class CommentarySource(val displayName: String, val fileName: String)
+data class CommentaryItem(
+    val sourceName: String,
+    val chapter: Long,
+    val verseStart: Long,
+    val verseEnd: Long,
+    val text: String
+)
+
 expect suspend fun checkDatabaseFile(name: String): Boolean
-expect suspend fun installDatabaseFile(name: String)
+expect suspend fun installDatabaseFile(name: String, resourcePath: String)
+expect suspend fun loadAppFont(): FontFamily?
+
 expect val ioDispatcher: CoroutineDispatcher
 
 private suspend fun prepareDatabaseFile(fileName: String) {
+    val simpleName = fileName.substringAfterLast('/')
     withContext(ioDispatcher) {
-        if (!checkDatabaseFile(fileName)) {
+        if (!checkDatabaseFile(simpleName)) {
             withTimeout(15000L) {
                 try {
-                    println("Installing DB: $fileName ...")
-                    installDatabaseFile(fileName)
-                    println("DB $fileName successfully installed.")
+                    installDatabaseFile(simpleName, "files/$fileName")
                 } catch (e: Exception) {
-                    println("Failed to install $fileName: $e")
-                    throw IllegalStateException("Failed to prepare database '$fileName'.", e)
+                    throw IllegalStateException("Failed to prepare database '$simpleName'.", e)
                 }
             }
         }
@@ -54,38 +68,69 @@ private suspend fun prepareDatabaseFile(fileName: String) {
 }
 
 class Bible(
-    val translation: Translation,
     val books: List<Book>,
     private val database: BibleDb
 ) {
     suspend fun getVerses(bookId: Long, chapter: Long): List<Verse> = withContext(ioDispatcher) {
         try {
             database.bibleQueries.getVerses(bookId, chapter)
-                .executeAsList()
+                .awaitAsList()
                 .map { Verse(it.book_number, it.chapter, it.verse, it.text) }
-        } catch (e: Exception) {
-            println("Error querying verses: $e")
+        } catch (_: Exception) {
             emptyList()
         }
     }
 }
 
 suspend fun loadBibleData(translation: Translation): Bible = withContext(ioDispatcher) {
-    val database = initializeBibleDatabase(translation.fileName)
+    prepareDatabaseFile(translation.fileName)
+    val simpleName = translation.fileName.substringAfterLast('/')
+    val driver = DatabaseDriverFactory().createDriver(simpleName)
+    val database = BibleDb(driver)
+
     val rawBooks = try {
-        database.bibleQueries.getBooks().executeAsList()
-    } catch (e: Exception) {
-        println("Error fetching books: $e")
+        database.bibleQueries.getBooks().awaitAsList()
+    } catch (_: Exception) {
         emptyList()
     }
     val books = rawBooks.map {
-        Book(it.book_number ?: 0L, it.long_name ?: "", it.chapter_count ?: 0L)
+        Book(it.book_number, it.long_name ?: "", it.chapter_count ?: 0L)
     }
-    Bible(translation, books, database)
+    Bible(books, database)
 }
 
 suspend fun getVocabularyForVerse(verse: Verse): List<LexiconEntry> = withContext(ioDispatcher) {
     VocabularyManager.getVocabulary(verse.bookId, verse.chapter, verse.number)
+}
+
+suspend fun getCommentariesForVerse(verse: Verse): List<CommentaryItem> = withContext(ioDispatcher) {
+    val results = mutableListOf<CommentaryItem>()
+    for (source in availableCommentaries) {
+        try {
+            prepareDatabaseFile(source.fileName)
+            val simpleName = source.fileName.substringAfterLast('/')
+            val driver = DatabaseDriverFactory().createDriver(simpleName)
+            val db = CommentaryDb(driver)
+
+            val comments = db.commentaryQueries.getCommentariesForVerse(
+                book_number = verse.bookId,
+                chapter = verse.chapter,
+                verse_start = verse.number,
+                verse_end = verse.number
+            ).awaitAsList()
+
+            comments.forEach { c ->
+                results.add(CommentaryItem(
+                    sourceName = source.displayName,
+                    chapter = c.chapter ?: 0L,
+                    verseStart = c.verse_start ?: 0L,
+                    verseEnd = c.verse_end ?: 0L,
+                    text = c.text ?: ""
+                ))
+            }
+        } catch (_: Exception) { }
+    }
+    results
 }
 
 object VocabularyManager {
@@ -99,38 +144,17 @@ object VocabularyManager {
         val db = ensureInitialized() ?: return@withContext emptyList()
 
         try {
-            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).executeAsList()
+            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
 
             rawEntries.map { entry ->
                 val allCodes = STRONGS_PATTERN.findAll(entry.strong_code).map { it.value }.toList()
 
-                // FIX: Normalize each code before lookup (H430 -> H0430)
                 val glosses = allCodes.mapNotNull { rawCode ->
-                    val code = normalizeStrongCode(rawCode)
-
-                    // 1. Try Exact Normalized Match
-                    var def = db.lexiconQueries.getLexiconDefinition(code).executeAsOneOrNull()
-
-                    // 2. Fallback: Case Flip (H1254A -> H1254a)
-                    if (def == null && code.length > 1 && code.last().isLetter()) {
-                        val lastChar = code.last()
-                        val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
-                        val altCode = code.dropLast(1) + swappedLast
-                        def = db.lexiconQueries.getLexiconDefinition(altCode).executeAsOneOrNull()
-                    }
-
-                    // 3. Fallback: Base Code (strip suffix)
-                    if (def == null && code.length > 1 && code.last().isLetter()) {
-                        val baseCode = code.dropLast(1)
-                        def = db.lexiconQueries.getLexiconDefinition(baseCode).executeAsOneOrNull()
-                    }
-
-                    def?.gloss
+                    getLexicon(db, rawCode)?.gloss
                 }
 
                 val combinedGloss = if (glosses.isEmpty()) "Unknown" else glosses.joinToString(" + ")
 
-                // Root Word Logic
                 val rootMatch = ROOT_WORD_PATTERN.find(entry.strong_code)
                 val rootText = rootMatch?.groupValues?.get(1) ?: entry.strong_code
                 val rawRootCode = STRONGS_PATTERN.find(rootText)?.value ?: allCodes.firstOrNull()
@@ -139,28 +163,13 @@ object VocabularyManager {
                 var rootTrans: String? = null
 
                 if (rawRootCode != null) {
-                    val rootCode = normalizeStrongCode(rawRootCode) // FIX: Normalize root too
-
-                    var defEntry = db.lexiconQueries.getLexiconDefinition(rootCode).executeAsOneOrNull()
-
-                    if (defEntry == null && rootCode.length > 1 && rootCode.last().isLetter()) {
-                        val lastChar = rootCode.last()
-                        val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
-                        val altCode = rootCode.dropLast(1) + swappedLast
-                        defEntry = db.lexiconQueries.getLexiconDefinition(altCode).executeAsOneOrNull()
-                    }
-
-                    if (defEntry == null && rootCode.length > 1 && rootCode.last().isLetter()) {
-                        val baseCode = rootCode.dropLast(1)
-                        defEntry = db.lexiconQueries.getLexiconDefinition(baseCode).executeAsOneOrNull()
-                    }
+                    val defEntry = getLexicon(db, rawRootCode)
 
                     rootDef = defEntry?.definition
                     rootTrans = defEntry?.transliteration
                 }
 
                 LexiconEntry(
-                    // We keep original raw code for display if desired, or you can normalize this too
                     strongCode = normalizeStrongCode(entry.strong_code),
                     originalWord = entry.original_word,
                     gloss = combinedGloss,
@@ -168,8 +177,7 @@ object VocabularyManager {
                     definition = rootDef
                 )
             }
-        } catch (e: Exception) {
-            println("Error querying vocabulary: $e")
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -177,9 +185,11 @@ object VocabularyManager {
     private suspend fun ensureInitialized(): LexiconDb? {
         if (database == null) {
             try {
-                database = initializeLexiconDatabase(LEXICON_DB_NAME)
-            } catch (e: Exception) {
-                println("Failed to initialize Vocabulary: $e")
+                val simpleName = LEXICON_DB_NAME.substringAfterLast('/')
+                prepareDatabaseFile(LEXICON_DB_NAME)
+                val driver = DatabaseDriverFactory().createDriver(simpleName)
+                database = LexiconDb(driver)
+            } catch (_: Exception) {
                 return null
             }
         }
@@ -187,14 +197,20 @@ object VocabularyManager {
     }
 }
 
-private suspend fun initializeBibleDatabase(fileName: String): BibleDb {
-    prepareDatabaseFile(fileName)
-    val driver = DatabaseDriverFactory().createDriver(fileName)
-    return BibleDb(driver)
-}
+suspend fun getLexicon(db: LexiconDb, rawCode: String): Lexicon? {
+    val code = normalizeStrongCode(rawCode)
+    var def = db.lexiconQueries.getLexiconDefinition(code).awaitAsOneOrNull()
 
-private suspend fun initializeLexiconDatabase(fileName: String): LexiconDb {
-    prepareDatabaseFile(fileName)
-    val driver = DatabaseDriverFactory().createDriver(fileName)
-    return LexiconDb(driver)
+    if (def == null && code.length > 1 && code.last().isLetter()) {
+        val lastChar = code.last()
+        val swappedLast =
+            if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
+        val altCode = code.dropLast(1) + swappedLast
+        def = db.lexiconQueries.getLexiconDefinition(altCode).awaitAsOneOrNull()
+    }
+    if (def == null && code.length > 1 && code.last().isLetter()) {
+        val baseCode = code.dropLast(1)
+        def = db.lexiconQueries.getLexiconDefinition(baseCode).awaitAsOneOrNull()
+    }
+    return def
 }
