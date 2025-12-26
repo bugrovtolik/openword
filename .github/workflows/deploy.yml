@@ -51,6 +51,7 @@ jobs:
       - name: Fix Web Artifacts (Copy index.html)
         run: |
           cp composeApp/src/jsMain/resources/index.html composeApp/build/dist/js/productionExecutable/index.html
+          touch composeApp/build/dist/js/productionExecutable/.nojekyll
           ls -R composeApp/build/dist/js/productionExecutable/
 
       # --- 4. Deploy Web to GitHub Pages ---
