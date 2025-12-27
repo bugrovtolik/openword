@@ -1,26 +1,16 @@
 package com.abuhrov.openword
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,7 +23,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,16 +69,23 @@ fun App() {
         ),
         typography = appTypography
     ) {
+        // Init State from Settings
+        val savedTranslationId = Settings.getString("last_translation", availableTranslations.first().id)
+        val savedBookId = Settings.getLong("last_book", 1L)
+        val savedChapter = Settings.getLong("last_chapter", 1L)
+        val savedVerse = Settings.getLong("last_verse", 1L)
+
         // App State
         var bible by remember { mutableStateOf<Bible?>(null) }
         var isLoading by remember { mutableStateOf(true) }
         var loadError by remember { mutableStateOf<String?>(null) }
+        var isInitialLoad by remember { mutableStateOf(true) }
 
         // Selection State
-        var selectedTranslation by remember { mutableStateOf(availableTranslations.first()) }
+        var selectedTranslation by remember { mutableStateOf(availableTranslations.find { it.id == savedTranslationId } ?: availableTranslations.first()) }
         var selectedBook by remember { mutableStateOf<Book?>(null) }
-        var selectedChapter by remember { mutableStateOf(1L) }
-        var selectedVerse by remember { mutableStateOf(1L) }
+        var selectedChapter by remember { mutableStateOf(savedChapter) } // Initialize with saved
+        var selectedVerse by remember { mutableStateOf(savedVerse) }     // Initialize with saved
 
         // Data State (Lazy Loaded)
         var currentVerses by remember { mutableStateOf<List<Verse>>(emptyList()) }
@@ -120,6 +116,15 @@ fun App() {
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
 
+        LaunchedEffect(selectedTranslation, selectedBook, selectedChapter, selectedVerse) {
+            if (!isLoading && selectedBook != null) {
+                Settings.setString("last_translation", selectedTranslation.id)
+                Settings.setLong("last_book", selectedBook!!.id)
+                Settings.setLong("last_chapter", selectedChapter)
+                Settings.setLong("last_verse", selectedVerse)
+            }
+        }
+
         // --- APP STARTUP ---
         LaunchedEffect(Unit) {
             launch(Dispatchers.Default) {
@@ -135,19 +140,31 @@ fun App() {
                 val loadedBible = loadBibleData(selectedTranslation)
                 bible = loadedBible
 
-                val currentBookId = selectedBook?.id
-                val newBookInstance = if (currentBookId != null) {
-                    loadedBible.books.find { it.id == currentBookId }
-                } else {
-                    null
-                }
+                if (isInitialLoad) {
+                    val book = loadedBible.books.find { it.id == savedBookId }
+                        ?: loadedBible.books.firstOrNull()
 
-                if (newBookInstance != null) {
-                    selectedBook = newBookInstance
+                    selectedBook = book
+
+                    if (book != null && selectedChapter > book.chapterCount) {
+                        selectedChapter = 1L
+                    }
+                    isInitialLoad = false
                 } else {
-                    selectedBook = loadedBible.books.firstOrNull()
-                    selectedChapter = 1L
-                    selectedVerse = 1L
+                    val currentBookId = selectedBook?.id
+                    val newBookInstance = if (currentBookId != null) {
+                        loadedBible.books.find { it.id == currentBookId }
+                    } else {
+                        null
+                    }
+
+                    if (newBookInstance != null) {
+                        selectedBook = newBookInstance
+                    } else {
+                        selectedBook = loadedBible.books.firstOrNull()
+                        selectedChapter = 1L
+                        selectedVerse = 1L
+                    }
                 }
             } catch (e: Exception) {
                 loadError = e.message
@@ -164,6 +181,10 @@ fun App() {
                     bible!!.getVerses(selectedBook!!.id, selectedChapter)
                 }
                 currentVerses = verses
+
+                if (selectedVerse > 1 && verses.size >= selectedVerse && listState.firstVisibleItemIndex == 0) {
+                     scope.launch { listState.scrollToItem(selectedVerse.toInt()) }
+                }
             } else {
                 currentVerses = emptyList()
             }
