@@ -1,16 +1,27 @@
 package com.abuhrov.openword
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +34,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +91,8 @@ fun App() {
         var bible by remember { mutableStateOf<Bible?>(null) }
         var isLoading by remember { mutableStateOf(true) }
         var loadError by remember { mutableStateOf<String?>(null) }
+
+        // FIX: Flag to track if we need to apply saved settings
         var isInitialLoad by remember { mutableStateOf(true) }
 
         // Selection State
@@ -116,7 +130,48 @@ fun App() {
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
 
+        // --- NAVIGATION HELPERS ---
+        val onNextChapter: () -> Unit = {
+            if (bible != null && selectedBook != null) {
+                if (selectedChapter < selectedBook!!.chapterCount) {
+                    selectedChapter += 1
+                    selectedVerse = 1L
+                } else {
+                    // Try next book
+                    val currentIndex = bible!!.books.indexOfFirst { it.id == selectedBook!!.id }
+                    if (currentIndex != -1 && currentIndex < bible!!.books.lastIndex) {
+                        selectedBook = bible!!.books[currentIndex + 1]
+                        selectedChapter = 1L
+                        selectedVerse = 1L
+                    }
+                }
+                scope.launch { listState.scrollToItem(0) }
+            }
+        }
+
+        val onPreviousChapter: () -> Unit = {
+            if (bible != null && selectedBook != null) {
+                if (selectedChapter > 1) {
+                    selectedChapter -= 1
+                    selectedVerse = 1L
+                    scope.launch { listState.scrollToItem(0) }
+                } else {
+                    // Try previous book
+                    val currentIndex = bible!!.books.indexOfFirst { it.id == selectedBook!!.id }
+                    if (currentIndex > 0) {
+                        val prevBook = bible!!.books[currentIndex - 1]
+                        selectedBook = prevBook
+                        selectedChapter = prevBook.chapterCount
+                        selectedVerse = 1L
+                        scope.launch { listState.scrollToItem(0) }
+                    }
+                }
+            }
+        }
+
+        // --- PERSISTENCE EFFECT ---
         LaunchedEffect(selectedTranslation, selectedBook, selectedChapter, selectedVerse) {
+            // Only save if we are not loading (to avoid overwriting with defaults during init)
             if (!isLoading && selectedBook != null) {
                 Settings.setString("last_translation", selectedTranslation.id)
                 Settings.setLong("last_book", selectedBook!!.id)
@@ -141,16 +196,20 @@ fun App() {
                 bible = loadedBible
 
                 if (isInitialLoad) {
+                    // FIX: Restore from Settings on first load
                     val book = loadedBible.books.find { it.id == savedBookId }
                         ?: loadedBible.books.firstOrNull()
 
                     selectedBook = book
 
+                    // Validate saved chapter
                     if (book != null && selectedChapter > book.chapterCount) {
                         selectedChapter = 1L
                     }
+                    // We keep selectedChapter/Verse as initialized from saved values
                     isInitialLoad = false
                 } else {
+                    // Standard logic when switching translation manually
                     val currentBookId = selectedBook?.id
                     val newBookInstance = if (currentBookId != null) {
                         loadedBible.books.find { it.id == currentBookId }
@@ -182,8 +241,11 @@ fun App() {
                 }
                 currentVerses = verses
 
+                // Scroll to saved verse ONLY if we just loaded verses matching the selection
+                // and we haven't scrolled yet.
+                // Using a simple check to see if list state is at top
                 if (selectedVerse > 1 && verses.size >= selectedVerse && listState.firstVisibleItemIndex == 0) {
-                     scope.launch { listState.scrollToItem(selectedVerse.toInt()) }
+                    scope.launch { listState.scrollToItem(selectedVerse.toInt()) }
                 }
             } else {
                 currentVerses = emptyList()
@@ -255,7 +317,30 @@ fun App() {
                 }
             }
         ) { padding ->
-            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // --- SWIPE GESTURE BOX ---
+            var dragOffset by remember { mutableStateOf(0f) }
+
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { dragOffset = 0f },
+                            onDragEnd = {
+                                if (dragOffset < -100f) { // Swipe Left -> Next
+                                    onNextChapter()
+                                } else if (dragOffset > 100f) { // Swipe Right -> Prev
+                                    onPreviousChapter()
+                                }
+                                dragOffset = 0f
+                            }
+                        ) { change, dragAmount ->
+                            // change.consume() // Do not consume if you want inner scrolling to work, but List is vertical
+                            dragOffset += dragAmount
+                        }
+                    }
+            ) {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (bible != null && selectedBook != null) {

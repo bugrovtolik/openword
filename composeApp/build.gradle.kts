@@ -1,6 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig.DevServer
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -9,7 +8,6 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.sqldelight)
     kotlin("plugin.serialization") version "2.3.0"
-    id("com.github.gmazzo.buildconfig") version "6.0.7"
 }
 
 kotlin {
@@ -117,18 +115,4 @@ android {
         sourceCompatibility = JavaVersion.VERSION_25
         targetCompatibility = JavaVersion.VERSION_25
     }
-}
-
-buildConfig {
-    packageName("com.abuhrov.openword")
-
-    val localProperties = Properties()
-    val localFile = rootProject.file("local.properties")
-    if (localFile.exists()) {
-        localFile.inputStream().use { localProperties.load(it) }
-    }
-
-    val apiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
-
-    buildConfigField("String", "GEMINI_API_KEY", "\"$apiKey\"")
 }

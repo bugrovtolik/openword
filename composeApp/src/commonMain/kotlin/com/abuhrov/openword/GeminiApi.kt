@@ -11,10 +11,11 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-private const val GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+private const val PROXY_URL = "https://openword-api.bugrovtolik.workers.dev"
 
+@Serializable
 data class ChatMessage(
-    val role: String,
+    val role: String, // "user" or "model"
     val text: String,
     val isError: Boolean = false
 )
@@ -31,26 +32,17 @@ object GeminiApi {
     }
 
     suspend fun generateChatResponse(history: List<ChatMessage>): String {
-        val apiKey = BuildConfig.GEMINI_API_KEY
-
-        if (apiKey.isBlank()) {
-            return "Error: GEMINI_API_KEY not found in local.properties. Please add it and rebuild."
+        if (PROXY_URL.contains("CHANGE_ME")) {
+            return "Error: Please set up the Cloudflare Worker and update PROXY_URL in GeminiApi.kt"
         }
 
         return try {
-            val contents = history.map { msg ->
-                Content(
-                    role = msg.role,
-                    parts = listOf(Part(text = msg.text))
-                )
-            }
-
-            val response: GeminiResponse = client.post("$GEMINI_URL?key=$apiKey") {
+            val response: ProxyResponse = client.post(PROXY_URL) {
                 contentType(ContentType.Application.Json)
-                setBody(GeminiRequest(contents = contents))
+                setBody(ProxyRequest(history = history))
             }.body()
 
-            response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "AI не відповідає"
+            response.text ?: "AI не відповідає"
         } catch (e: Exception) {
             "Помилка: ${e.message}"
         }
@@ -58,19 +50,7 @@ object GeminiApi {
 }
 
 @Serializable
-data class GeminiRequest(val contents: List<Content>)
+data class ProxyRequest(val history: List<ChatMessage>)
 
 @Serializable
-data class Content(
-    val role: String,
-    val parts: List<Part>
-)
-
-@Serializable
-data class Part(val text: String)
-
-@Serializable
-data class GeminiResponse(val candidates: List<Candidate> = emptyList())
-
-@Serializable
-data class Candidate(val content: Content)
+data class ProxyResponse(val text: String?)

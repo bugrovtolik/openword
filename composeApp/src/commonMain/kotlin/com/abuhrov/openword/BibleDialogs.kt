@@ -289,7 +289,7 @@ fun CommentariesPopup(
                 ) {
                     Column {
                         Text(
-                            text = "Commentaries",
+                            text = "Коментарі",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -300,7 +300,7 @@ fun CommentariesPopup(
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
 
@@ -370,13 +370,13 @@ fun VocabularyPopup(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (selectedDefinition != null) {
                             IconButton(onClick = { onSelectDefinition(null) }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
 
                         Column {
                             Text(
-                                text = if (selectedDefinition != null) selectedDefinition.strongCode else "Vocabulary",
+                                text = if (selectedDefinition != null) selectedDefinition.strongCode else "Словник",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -388,7 +388,7 @@ fun VocabularyPopup(
                         }
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
 
@@ -489,7 +489,7 @@ fun TranslationSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Translation") },
+        title = { Text("Оберіть переклад") },
         text = {
             LazyColumn {
                 items(availableTranslations) { translation ->
@@ -532,12 +532,12 @@ fun NavigationSelectionDialog(
                     IconButton(onClick = {
                         onNavModeChange(if (navMode == NavMode.VERSE) NavMode.CHAPTER else NavMode.BOOK)
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
                     }
                 }
                 Text(
                     when (navMode) {
-                        NavMode.BOOK -> "Обрати книгу"
+                        NavMode.BOOK -> "Оберіть книгу"
                         NavMode.CHAPTER -> "${selectedBook?.name}"
                         NavMode.VERSE -> "${selectedBook?.name} $selectedChapter"
                     },
