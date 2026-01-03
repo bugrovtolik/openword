@@ -1,4 +1,4 @@
-package com.abuhrov.openword.home
+package com.abuhrov.openword.home.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -73,9 +73,12 @@ import com.abuhrov.openword.stripTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    viewModel: HomeViewModel = koinViewModel(),
+) {
 
     // Init State from Settings
     val savedTranslationId =

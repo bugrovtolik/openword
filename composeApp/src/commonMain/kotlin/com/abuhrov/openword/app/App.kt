@@ -19,7 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.abuhrov.openword.app.navigation.Route
-import com.abuhrov.openword.home.HomeScreen
+import com.abuhrov.openword.home.presentation.HomeScreen
 import com.abuhrov.openword.loadAppFont
 
 @OptIn(ExperimentalMaterial3Api::class)
