@@ -1,6 +1,6 @@
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
-import com.abuhrov.openword.App
+import com.abuhrov.openword.app.App
 import kotlinx.browser.document
 import org.jetbrains.skiko.wasm.onWasmReady
 

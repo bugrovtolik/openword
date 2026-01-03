@@ -9,9 +9,11 @@ ktorClientDarwin = "3.3.3"
 ktorClientJs = "3.3.3"
 ktorVersion = "3.3.3"
 sqldelight = "2.2.1"
+navigationCompose = "2.9.1"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+compose-navigation = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref= "navigationCompose"}
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core-ktx" }
 androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 

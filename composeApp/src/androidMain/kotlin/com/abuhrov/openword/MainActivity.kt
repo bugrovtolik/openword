@@ -3,6 +3,7 @@ package com.abuhrov.openword
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.abuhrov.openword.app.App
 import com.abuhrov.openword.db.AndroidContext
 
 class MainActivity : ComponentActivity() {
