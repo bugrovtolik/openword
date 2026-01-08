@@ -9,3 +9,4 @@
 local.properties
 /.kotlin/metadata/kotlinTransformedCInteropMetadataLibraries
 /.kotlin/metadata/kotlinTransformedMetadataLibraries
+/kotlin-js-store/yarn.lock

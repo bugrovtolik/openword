@@ -14,7 +14,6 @@ import org.khronos.webgl.Int8Array
 
 actual class DatabaseDriverFactory {
     actual suspend fun createDriver(dbName: String): SqlDriver {
-        console.log("JS: createDriver called for", dbName)
 
         // 1. Initialize SQL.js (Main Thread)
         val SQL = try {
@@ -26,27 +25,18 @@ actual class DatabaseDriverFactory {
 
         // 2. Load Database Bytes
         val dbBytes = BibleDataCache.map[dbName]
-        if (dbBytes != null) {
-            console.log("JS: dbBytes length for", dbName, "is", dbBytes.length)
-        } else {
-            console.log("JS: dbBytes is null/empty for", dbName)
-        }
 
         // 3. Create Database Object
         val db = try {
             if (dbBytes != null && dbBytes.length > 0) {
-                console.log("JS: Opening existing DB from bytes...")
                 createNewDatabase(SQL, dbBytes)
             } else {
-                console.log("JS: Creating empty DB (Cache miss or new)...")
                 createNewDatabase(SQL, null)
             }
         } catch (e: Throwable) {
             console.error("JS: Failed to open/create DB object", e)
             throw RuntimeException("Failed to open DB $dbName", e)
         }
-
-        console.log("JS: DB opened successfully for", dbName)
 
         // 4. Return Custom Main-Thread Driver
         return MainThreadSqlDriver(db)
@@ -69,14 +59,10 @@ private fun initSqlJsSafe(): Promise<dynamic> = js("""
                 locateFile: function(file) {
                     return 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm';
                 },
-                print: function(text) {
-                    console.log("SQL.js stdout:", text);
-                },
                 printErr: function(text) {
                     console.error("SQL.js stderr:", text);
                 }
             }).then(function(sql) {
-                console.log("JS [initSqlJsSafe]: Promise resolved.");
                 resolve(sql);
             }).catch(function(e) {
                 console.error("JS [initSqlJsSafe]: Promise rejected.", e);

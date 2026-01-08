@@ -16,8 +16,7 @@ private const val PROXY_URL = "https://openword-api.bugrovtolik.workers.dev"
 @Serializable
 data class ChatMessage(
     val role: String, // "user" or "model"
-    val text: String,
-    val isError: Boolean = false
+    val text: String
 )
 
 object GeminiApi {
@@ -32,8 +31,11 @@ object GeminiApi {
     }
 
     suspend fun generateChatResponse(history: List<ChatMessage>): String {
-        if (PROXY_URL.contains("CHANGE_ME")) {
-            return "Error: Please set up the Cloudflare Worker and update PROXY_URL in GeminiApi.kt"
+        val cacheKey = "gemini_cache_" + history.hashCode().toUInt().toString()
+        val cachedResponse = Settings.getString(cacheKey, "")
+
+        if (cachedResponse.isNotBlank()) {
+            return cachedResponse
         }
 
         return try {
@@ -42,7 +44,13 @@ object GeminiApi {
                 setBody(ProxyRequest(history = history))
             }.body()
 
-            response.text ?: "AI не відповідає"
+            val result = response.text ?: "AI не відповідає"
+
+            if (response.text != null) {
+                Settings.setString(cacheKey, result)
+            }
+
+            result
         } catch (e: Exception) {
             "Помилка: ${e.message}"
         }

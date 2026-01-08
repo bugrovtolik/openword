@@ -7,6 +7,7 @@ import com.abuhrov.openword.db.*
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.Serializable
 
 private val STRONGS_PATTERN = Regex("[HG]\\d+[A-Za-z]*")
 private val ROOT_WORD_PATTERN = Regex("\\{([^}]+)\\}")
@@ -29,6 +30,7 @@ data class Translation(val id: String, val displayName: String, val fileName: St
 data class Book(val id: Long, val name: String, val chapterCount: Long)
 data class Verse(val bookId: Long, val chapter: Long, val number: Long, val text: String)
 
+@Serializable
 data class LexiconEntry(
     val strongCode: String,
     val originalWord: String,
@@ -37,7 +39,10 @@ data class LexiconEntry(
     val definition: String?
 )
 
+@Serializable
 data class CommentarySource(val displayName: String, val fileName: String)
+
+@Serializable
 data class CommentaryItem(
     val sourceName: String,
     val chapter: Long,
