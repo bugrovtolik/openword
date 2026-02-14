@@ -55,3 +55,11 @@ fun findAssetPathRecursive(context: android.content.Context, targetName: String,
     }
     return null
 }
+
+actual suspend fun deleteDatabaseFile(name: String) {
+    val context = AndroidContext.applicationContext
+    val dbFile = context.getDatabasePath(name)
+    if (dbFile.exists()) {
+        dbFile.delete()
+    }
+}

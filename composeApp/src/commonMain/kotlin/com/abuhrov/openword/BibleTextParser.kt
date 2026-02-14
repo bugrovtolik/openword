@@ -5,10 +5,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 
 fun parseBibleText(text: String): AnnotatedString {
-    val cleanText = text.replace(Regex("^(\\s*<pb/>)+"), "")
-    val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})")
+    val cleanText = text.removeNotes().replace(Regex("^(\\s*<pb/>)+"), "")
+    val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[(\\d+)\\])")
 
     return buildAnnotatedString {
         var lastIndex = 0
@@ -35,6 +39,13 @@ fun parseBibleText(text: String): AnnotatedString {
                         addStringAnnotation(tag = "STRONG", annotation = code, start = wordStart, end = wordEnd)
                     }
                 }
+            } else if (tag.startsWith("[")) {
+                val number = matchResult.groupValues[4]
+                pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = number)
+                withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                    append(number)
+                }
+                pop()
             } else {
                 when (tag) {
                     "<J>" -> pushStyle(SpanStyle(color = Color(0xFFB71C1C)))
@@ -54,106 +65,78 @@ fun parseBibleText(text: String): AnnotatedString {
 
 private fun Char.isPunctuation(): Boolean = this in ",.;:!?"
 
-fun stripTags(text: String): String = Regex("(<[^>]+>)|(\\{[^}]+\\})").replace(text, "")
+// Simplified note removal
+private fun String.removeNotes() = replace(Regex("<n>.*?</n>\\s*"), "")
+
+fun stripTags(text: String): String {
+    return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(text.removeNotes(), "")
+}
 
 fun normalizeStrongCode(code: String): String {
     if (code.isEmpty()) return code
     val prefix = code[0]
     if (prefix != 'H' && prefix != 'G') return code
-
     var digitEnd = 1
-    while (digitEnd < code.length && code[digitEnd].isDigit()) {
-        digitEnd++
-    }
-
+    while (digitEnd < code.length && code[digitEnd].isDigit()) digitEnd++
     if (digitEnd == 1) return code
-
-    val numberPart = code.substring(1, digitEnd)
-    val suffix = code.substring(digitEnd)
-    val paddedNumber = numberPart.padStart(4, '0')
-
-    return "$prefix$paddedNumber$suffix"
+    return "$prefix${code.substring(1, digitEnd).padStart(4, '0')}${code.substring(digitEnd)}"
 }
 
+// --- Commentary Parsing ---
+
 fun parseCommentaryText(text: String): AnnotatedString {
-    val trimmed = text.trimStart()
+    val textWithoutNotes = text.removeNotes()
+    val trimmed = textWithoutNotes.trimStart()
+
     if (trimmed.startsWith("{") || trimmed.startsWith("\\")) {
-        return AnnotatedString(stripRtf(text))
+        return AnnotatedString(stripRtf(textWithoutNotes))
     }
 
-    // 2. Handle HTML-like tags (IVP, UBIO)
-    val clean = text
+    val clean = textWithoutNotes
         .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
         .replace(Regex("<[^>]+>"), "")
 
     return AnnotatedString(clean.trim())
 }
 
-/**
- * Robust RTF stripper that handles nested groups, ignorable destinations (headers/info),
- * and unicode characters.
- */
 private fun stripRtf(rtf: String): String {
     val result = StringBuilder()
     var i = 0
     val len = rtf.length
-
     val ignoreStack = ArrayDeque<Boolean>()
     var ignoring = false
-
     val ignoreDestinations = setOf(
         "info", "stylesheet", "fonttbl", "colortbl", "header", "footer",
         "pict", "private", "xe", "tc", "txe", "mmath"
     )
-
     var ucSkip = 1
 
     while (i < len) {
         val c = rtf[i]
         when (c) {
-            '{' -> {
-                ignoreStack.addLast(ignoring)
-                i++
-            }
-            '}' -> {
-                if (ignoreStack.isNotEmpty()) {
-                    ignoring = ignoreStack.removeLast()
-                }
-                i++
-            }
+            '{' -> { ignoreStack.addLast(ignoring); i++ }
+            '}' -> { if (ignoreStack.isNotEmpty()) ignoring = ignoreStack.removeLast(); i++ }
             '\\' -> {
                 i++
                 if (i >= len) break
                 val next = rtf[i]
-
-                // 1. Check for \* (Ignorable Destination)
-                if (next == '*' && !ignoring) {
-                    ignoring = true
-                    i++
-                }
-                // 2. Control Word (starts with letter)
+                if (next == '*' && !ignoring) { ignoring = true; i++ }
                 else if (next.isLetter()) {
-                    val start = i
+                    var start = i
                     while (i < len && rtf[i].isLetter()) i++
                     val word = rtf.substring(start, i)
-
-                    // Parameter (optional digits/hyphen)
                     var hasParam = false
-                    val paramStart = i
+                    var paramStart = i
                     if (i < len && (rtf[i] == '-' || rtf[i].isDigit())) {
                         hasParam = true
                         if (rtf[i] == '-') i++
                         while (i < len && rtf[i].isDigit()) i++
                     }
                     val param = if (hasParam) rtf.substring(paramStart, i).toIntOrNull() else null
-
-                    // Delimiter (space) consumes the space
                     if (i < len && rtf[i] == ' ') i++
-
                     if (!ignoring) {
-                        if (ignoreDestinations.contains(word)) {
-                            ignoring = true
-                        } else {
+                        if (ignoreDestinations.contains(word)) ignoring = true
+                        else {
                             when (word) {
                                 "par", "line", "row", "page" -> result.append('\n')
                                 "tab" -> result.append('\t')
@@ -179,18 +162,13 @@ private fun stripRtf(rtf: String): String {
                         }
                     }
                 }
-                // 3. Hex Character \'xx
                 else if (next == '\'') {
                     i++
                     if (!ignoring && i + 1 < len) {
-                        try {
-                            val hex = rtf.substring(i, i + 2)
-                            result.append(hex.toInt(16).toChar())
-                        } catch (e: Exception) {}
+                        try { result.append(rtf.substring(i, i + 2).toInt(16).toChar()) } catch (e: Exception) {}
                         i += 2
                     }
                 }
-                // 4. Escaped Symbols \\, \{, \}
                 else {
                     if (!ignoring) {
                         when (next) {
@@ -203,14 +181,8 @@ private fun stripRtf(rtf: String): String {
                 }
             }
             '\r', '\n' -> i++
-            else -> {
-                if (!ignoring) result.append(c)
-                i++
-            }
+            else -> { if (!ignoring) result.append(c); i++ }
         }
     }
-
-    return result.toString()
-        .replace(Regex("\\n\\s*\\n+"), "\n\n")
-        .trim()
+    return result.toString().replace(Regex("\\n\\s*\\n+"), "\n\n").trim()
 }

@@ -51,3 +51,11 @@ private fun getDatabasePath(name: String): String {
     NSFileManager.defaultManager.createDirectoryAtPath(directory, true, null, null)
     return "$directory/$name"
 }
+
+actual suspend fun deleteDatabaseFile(name: String) {
+    val fileManager = NSFileManager.defaultManager
+    val dbPath = getDatabasePath(name)
+    if (fileManager.fileExistsAtPath(dbPath)) {
+        fileManager.removeItemAtPath(dbPath, null)
+    }
+}

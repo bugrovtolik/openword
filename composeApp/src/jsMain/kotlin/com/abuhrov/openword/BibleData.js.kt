@@ -94,3 +94,13 @@ private suspend fun loadFromIdb(name: String): Uint8Array? = suspendCoroutine { 
     }
     req.onerror = { cont.resume(null) }
 }
+
+actual suspend fun deleteDatabaseFile(name: String) {
+    BibleDataCache.map.remove(name)
+    val req = js("indexedDB.open('openword_db', 1)")
+    req.onsuccess = { e: dynamic ->
+        val db = e.target.result
+        val tx = db.transaction("files", "readwrite")
+        tx.objectStore("files").delete(name)
+    }
+}
