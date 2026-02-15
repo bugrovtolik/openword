@@ -6,7 +6,7 @@ import app.cash.sqldelight.db.SqlCursor
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.Transacter
 import app.cash.sqldelight.Query
-import com.abuhrov.openword.BibleDataCache
+import com.abuhrov.openword.data.platform.BibleDataCache
 import org.khronos.webgl.Uint8Array
 import kotlin.js.Promise
 import kotlinx.coroutines.await

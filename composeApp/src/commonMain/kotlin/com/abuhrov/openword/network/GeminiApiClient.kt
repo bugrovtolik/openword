@@ -1,5 +1,10 @@
-package com.abuhrov.openword
+package com.abuhrov.openword.network
 
+import com.abuhrov.openword.Settings
+import com.abuhrov.openword.model.ChatMessage
+import com.abuhrov.openword.network.model.ProxyRequest
+import com.abuhrov.openword.network.model.ProxyResponse
+import com.abuhrov.openword.util.Constants
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -8,18 +13,9 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-private const val PROXY_URL = "https://openword-api.bugrovtolik.workers.dev"
-
-@Serializable
-data class ChatMessage(
-    val role: String, // "user" or "model"
-    val text: String
-)
-
-object GeminiApi {
+object GeminiApiClient {
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json {
@@ -39,7 +35,7 @@ object GeminiApi {
         }
 
         return try {
-            val response: ProxyResponse = client.post(PROXY_URL) {
+            val response: ProxyResponse = client.post(Constants.GEMINI_PROXY_URL) {
                 contentType(ContentType.Application.Json)
                 setBody(ProxyRequest(history = history))
             }.body()
@@ -56,9 +52,3 @@ object GeminiApi {
         }
     }
 }
-
-@Serializable
-data class ProxyRequest(val history: List<ChatMessage>)
-
-@Serializable
-data class ProxyResponse(val text: String?)

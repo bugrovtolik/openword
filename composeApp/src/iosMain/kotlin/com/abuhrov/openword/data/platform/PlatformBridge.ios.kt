@@ -1,7 +1,8 @@
 @file:OptIn(ExperimentalForeignApi::class)
 
-package com.abuhrov.openword
+package com.abuhrov.openword.data.platform
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontFamily
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineDispatcher
@@ -13,7 +14,8 @@ import platform.Foundation.*
 
 actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 
-actual suspend fun loadAppFont(): FontFamily? = FontFamily(Font(Res.font.OpenSans))
+@Composable
+actual fun loadAppFont(): FontFamily? = FontFamily(Font(Res.font.OpenSans))
 
 actual suspend fun checkDatabaseFile(name: String): Boolean {
     val fileManager = NSFileManager.defaultManager
@@ -45,17 +47,17 @@ actual suspend fun installDatabaseFile(name: String, resourcePath: String) {
     }
 }
 
-private fun getDatabasePath(name: String): String {
-    val paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
-    val directory = paths.first() as String
-    NSFileManager.defaultManager.createDirectoryAtPath(directory, true, null, null)
-    return "$directory/$name"
-}
-
 actual suspend fun deleteDatabaseFile(name: String) {
     val fileManager = NSFileManager.defaultManager
     val dbPath = getDatabasePath(name)
     if (fileManager.fileExistsAtPath(dbPath)) {
         fileManager.removeItemAtPath(dbPath, null)
     }
+}
+
+private fun getDatabasePath(name: String): String {
+    val paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
+    val directory = paths.first() as String
+    NSFileManager.defaultManager.createDirectoryAtPath(directory, true, null, null)
+    return "$directory/$name"
 }

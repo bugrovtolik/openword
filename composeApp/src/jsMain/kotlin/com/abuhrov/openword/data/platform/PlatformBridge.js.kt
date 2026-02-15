@@ -1,5 +1,6 @@
-package com.abuhrov.openword
+package com.abuhrov.openword.data.platform
 
+import androidx.compose.runtime.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.Font
 import kotlinx.coroutines.CoroutineDispatcher
@@ -20,18 +21,21 @@ object BibleDataCache {
 actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 
 @OptIn(ExperimentalResourceApi::class)
-actual suspend fun loadAppFont(): FontFamily? {
-    return try {
-        val bytes = Res.readBytes("font/OpenSans.ttf")
-        val int8Array = Int8Array(bytes.size)
-        for (i in bytes.indices) {
-            int8Array[i] = bytes[i]
-        }
-        val font = Font(identity = "OpenSans", data = int8Array.unsafeCast<ByteArray>())
-        FontFamily(font)
-    } catch (e: Throwable) {
-        null
+@Composable
+actual fun loadAppFont(): FontFamily? {
+    var fontFamily by remember { mutableStateOf<FontFamily?>(null) }
+    LaunchedEffect(Unit) {
+        try {
+            val bytes = Res.readBytes("font/OpenSans.ttf")
+            val int8Array = Int8Array(bytes.size)
+            for (i in bytes.indices) {
+                int8Array[i] = bytes[i]
+            }
+            val font = Font(identity = "OpenSans", data = int8Array.unsafeCast<ByteArray>())
+            fontFamily = FontFamily(font)
+        } catch (_: Throwable) {}
     }
+    return fontFamily
 }
 
 actual suspend fun checkDatabaseFile(name: String): Boolean {
@@ -56,6 +60,16 @@ actual suspend fun installDatabaseFile(name: String, resourcePath: String) {
 
     BibleDataCache.map[name] = uint8Array
     saveToIdb(name, uint8Array)
+}
+
+actual suspend fun deleteDatabaseFile(name: String) {
+    BibleDataCache.map.remove(name)
+    val req = js("indexedDB.open('openword_db', 1)")
+    req.onsuccess = { e: dynamic ->
+        val db = e.target.result
+        val tx = db.transaction("files", "readwrite")
+        tx.objectStore("files").delete(name)
+    }
 }
 
 private suspend fun saveToIdb(name: String, data: Uint8Array): Unit = suspendCoroutine { cont ->
@@ -93,14 +107,4 @@ private suspend fun loadFromIdb(name: String): Uint8Array? = suspendCoroutine { 
         getReq.onerror = { cont.resume(null) }
     }
     req.onerror = { cont.resume(null) }
-}
-
-actual suspend fun deleteDatabaseFile(name: String) {
-    BibleDataCache.map.remove(name)
-    val req = js("indexedDB.open('openword_db', 1)")
-    req.onsuccess = { e: dynamic ->
-        val db = e.target.result
-        val tx = db.transaction("files", "readwrite")
-        tx.objectStore("files").delete(name)
-    }
 }
