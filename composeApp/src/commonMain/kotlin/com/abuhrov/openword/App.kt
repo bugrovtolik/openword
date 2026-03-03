@@ -9,6 +9,7 @@ import com.abuhrov.openword.data.local.clearAllLocalData
 import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
 import com.abuhrov.openword.model.*
+import com.abuhrov.openword.model.NavigationViewMode
 import com.abuhrov.openword.ui.dialog.*
 import com.abuhrov.openword.ui.screen.BibleReaderScreen
 import com.abuhrov.openword.ui.screen.BibleTopBar
@@ -24,6 +25,7 @@ import kotlinx.coroutines.withContext
 fun App() {
     var fontSizeScale by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.FONT_SCALE, Constants.DEFAULT_FONT_SCALE).toFloat()) }
     var autoTranslate by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.AUTO_TRANSLATE, Constants.DEFAULT_AUTO_TRANSLATE).toBoolean()) }
+    var navViewMode by remember { mutableStateOf(NavigationViewMode.valueOf(Settings.getString(Constants.SettingsKeys.NAV_VIEW_MODE, Constants.DEFAULT_NAV_VIEW_MODE))) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
     val currentFont = loadAppFont()
@@ -236,7 +238,7 @@ fun App() {
 
         if (showNavSelection && bible != null) {
             NavigationSelectionDialog(
-                bible = bible!!, navMode = navMode, selectedBook = selectedBook, selectedChapter = selectedChapter, currentVerseCount = currentVerses.size,
+                bible = bible!!, navMode = navMode, navViewMode = navViewMode, selectedBook = selectedBook, selectedChapter = selectedChapter, currentVerseCount = currentVerses.size,
                 onNavModeChange = { navMode = it }, onSelectBook = { selectedBook = it; selectedChapter = 1L; selectedVerse = 1L; navMode = NavMode.CHAPTER },
                 onSelectChapter = { selectedChapter = it; selectedVerse = 1L; navMode = NavMode.VERSE },
                 onSelectVerse = { selectedVerse = it; showNavSelection = false; scope.launch { listState.scrollToItem(it.toInt()) } },
@@ -246,9 +248,10 @@ fun App() {
 
         if (showSettingsDialog) {
             SettingsDialog(
-                currentFontSizeScale = fontSizeScale, currentAutoTranslate = autoTranslate,
+                currentFontSizeScale = fontSizeScale, currentAutoTranslate = autoTranslate, currentNavViewMode = navViewMode,
                 onFontSizeChange = { fontSizeScale = it; Settings.setString(Constants.SettingsKeys.FONT_SCALE, it.toString()) },
                 onAutoTranslateChange = { autoTranslate = it; Settings.setString(Constants.SettingsKeys.AUTO_TRANSLATE, it.toString()) },
+                onNavViewModeChange = { navViewMode = it; Settings.setString(Constants.SettingsKeys.NAV_VIEW_MODE, it.name) },
                 onReloadAllData = {
                     scope.launch {
                         isLoading = true; clearAllLocalData(); try { bible = loadBibleData(selectedTranslation) } catch (_: Exception) {}

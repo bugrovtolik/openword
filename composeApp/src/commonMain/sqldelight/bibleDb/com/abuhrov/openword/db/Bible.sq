@@ -21,6 +21,7 @@ CREATE TABLE verses (
 getBooks:
 SELECT
     books.book_number,
+    books.short_name,
     books.long_name,
     MAX(verses.chapter) AS chapter_count
 FROM books

@@ -17,12 +17,14 @@ import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.model.NavMode
+import com.abuhrov.openword.model.NavigationViewMode
 import com.abuhrov.openword.ui.components.NavigationGridItem
 
 @Composable
 fun NavigationSelectionDialog(
     bible: Bible,
     navMode: NavMode,
+    navViewMode: NavigationViewMode,
     selectedBook: Book?,
     selectedChapter: Long,
     currentVerseCount: Int,
@@ -50,12 +52,30 @@ fun NavigationSelectionDialog(
             Box(modifier = Modifier.height(400.dp).width(300.dp)) {
                 when (navMode) {
                     NavMode.BOOK -> {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(bible.books) { book ->
-                                TextButton(onClick = { onSelectBook(book) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
-                                    Text(book.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = if (book == selectedBook) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth())
+                        when (navViewMode) {
+                            NavigationViewMode.LIST -> {
+                                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                    items(bible.books) { book ->
+                                        TextButton(onClick = { onSelectBook(book) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+                                            Text(book.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = if (book == selectedBook) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth())
+                                        }
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    }
                                 }
-                                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            }
+                            NavigationViewMode.GRID -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(6),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(bible.books) { book ->
+                                        NavigationGridItem(
+                                            text = book.shortName,
+                                            isSelected = book == selectedBook
+                                        ) { onSelectBook(book) }
+                                    }
+                                }
                             }
                         }
                     }

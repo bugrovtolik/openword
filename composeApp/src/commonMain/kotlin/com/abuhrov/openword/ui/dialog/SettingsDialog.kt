@@ -16,13 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.abuhrov.openword.model.NavigationViewMode
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     currentFontSizeScale: Float,
     currentAutoTranslate: Boolean,
+    currentNavViewMode: NavigationViewMode,
     onFontSizeChange: (Float) -> Unit,
     onAutoTranslateChange: (Boolean) -> Unit,
+    onNavViewModeChange: (NavigationViewMode) -> Unit,
     onReloadAllData: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -75,6 +79,26 @@ fun SettingsDialog(
                         onCheckedChange = onAutoTranslateChange
                     )
                     Text("Автопереклад (Коментарі/Словник)")
+                }
+                Spacer(Modifier.height(16.dp))
+
+                Text("Вигляд навігації", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = currentNavViewMode == NavigationViewMode.LIST,
+                        onClick = { onNavViewModeChange(NavigationViewMode.LIST) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) {
+                        Text("Список")
+                    }
+                    SegmentedButton(
+                        selected = currentNavViewMode == NavigationViewMode.GRID,
+                        onClick = { onNavViewModeChange(NavigationViewMode.GRID) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) {
+                        Text("Сітка")
+                    }
                 }
                 Spacer(Modifier.height(24.dp))
 
