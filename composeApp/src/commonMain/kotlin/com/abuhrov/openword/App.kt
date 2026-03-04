@@ -1,5 +1,7 @@
 package com.abuhrov.openword
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -11,7 +13,6 @@ import com.abuhrov.openword.data.local.clearAllLocalData
 import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
 import com.abuhrov.openword.model.*
-import com.abuhrov.openword.model.NavigationViewMode
 import com.abuhrov.openword.ui.dialog.*
 import com.abuhrov.openword.ui.screen.BibleReaderScreen
 import com.abuhrov.openword.ui.screen.BibleTopBar
@@ -229,7 +230,8 @@ fun App() {
                     },
                     onClearSelection = { clearSelection() }
                 )
-            }
+            },
+            contentWindowInsets = WindowInsets.safeDrawing
         ) { padding ->
             BibleReaderScreen(
                 padding = padding,
