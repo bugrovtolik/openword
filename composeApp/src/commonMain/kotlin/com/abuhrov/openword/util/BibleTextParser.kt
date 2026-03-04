@@ -17,13 +17,40 @@ fun parseBibleText(text: String): AnnotatedString {
     return buildAnnotatedString {
         var lastIndex = 0
         val shadowText = StringBuilder()
+        var fMarkerStart = -1 // Position where <f> content starts in the annotated string
+        val fMarkerOriginal = StringBuilder() // Accumulates original (undecoded) marker text for DB lookup
 
         tagPattern.findAll(cleanText).forEach { matchResult ->
             val before = cleanText.substring(lastIndex, matchResult.range.first)
-            append(before)
+            if (fMarkerStart >= 0) {
+                // Inside <f>...</f> — append decoded for display, accumulate original for annotation
+                fMarkerOriginal.append(before)
+                withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                    append(decodeCircledLetters(before))
+                }
+            } else {
+                append(before)
+            }
             shadowText.append(before)
 
             val tag = matchResult.value
+
+            // When inside <f>...</f>, only handle </f> closing tag, append everything else as marker text
+            if (fMarkerStart >= 0) {
+                if (tag == "</f>") {
+                    addStringAnnotation(tag = "COMMENTARY_MARKER", annotation = fMarkerOriginal.toString(), start = fMarkerStart, end = this.length)
+                    fMarkerOriginal.clear()
+                    fMarkerStart = -1
+                } else {
+                    // Append matched content (like [1]) as styled marker text
+                    fMarkerOriginal.append(tag)
+                    withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                        append(decodeCircledLetters(tag))
+                    }
+                }
+                lastIndex = matchResult.range.last + 1
+                return@forEach
+            }
 
             if (tag.startsWith("{")) {
                 val code = tag.removeSurrounding("{", "}")
@@ -52,13 +79,26 @@ fun parseBibleText(text: String): AnnotatedString {
                     "</J>" -> try { pop() } catch (e: Exception) {}
                     "<i>" -> pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
                     "</i>" -> try { pop() } catch (e: Exception) {}
+                    "<f>" -> {
+                        fMarkerStart = this.length
+                    }
+                    "</f>" -> {
+                        // Orphan </f> without <f> — ignore
+                    }
                 }
             }
             lastIndex = matchResult.range.last + 1
         }
 
         if (lastIndex < cleanText.length) {
-            append(cleanText.substring(lastIndex))
+            val remaining = cleanText.substring(lastIndex)
+            if (fMarkerStart >= 0) {
+                withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                    append(remaining)
+                }
+            } else {
+                append(remaining)
+            }
         }
     }
 }
@@ -68,8 +108,23 @@ private fun Char.isPunctuation(): Boolean = this in ",.;:!?"
 // Simplified note removal
 private fun String.removeNotes() = replace(Regex("<n>.*?</n>\\s*"), "")
 
+// Convert circled Unicode letters (ⓐ-ⓩ U+24D0..U+24E9) to regular lowercase letters for display
+private fun decodeCircledLetters(text: String): String {
+    return buildString {
+        for (ch in text) {
+            if (ch in '\u24D0'..'\u24E9') {
+                append(('a' + (ch - '\u24D0')))
+            } else {
+                append(ch)
+            }
+        }
+    }
+}
+
 fun stripTags(text: String): String {
-    return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(text.removeNotes(), "")
+    return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(
+        text.removeNotes().replace(Regex("<f>.*?</f>\\s*"), ""), ""
+    )
 }
 
 fun normalizeStrongCode(code: String): String {

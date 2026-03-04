@@ -17,4 +17,4 @@ WHERE book_number = ? AND chapter = ? AND verse_start <= ? AND verse_end >= ?;
 getCommentaryByMarker:
 SELECT text
 FROM commentaries
-WHERE book_number = ? AND chapter = ? AND marker = ?;
+WHERE book_number = ? AND chapter = ? AND verse_start = ? AND (marker = ? OR marker = ?);

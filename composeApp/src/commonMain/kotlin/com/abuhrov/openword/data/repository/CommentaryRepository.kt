@@ -78,15 +78,19 @@ object CommentaryRepository {
         }.awaitAll().flatten()
     }
 
-    suspend fun getMarkerNote(bookId: Long, chapter: Long, marker: Long, source: CommentarySource): String? {
+    suspend fun getMarkerNote(bookId: Long, chapter: Long, verse: Long, marker: String, source: CommentarySource): String? {
         return try {
             val db = getOrOpenDatabase(source)
             db.commentaryQueries.getCommentaryByMarker(
                 book_number = bookId,
                 chapter = chapter,
-                marker = "[$marker]"
+                verse_start = verse,
+                marker = marker,
+                marker_ = if (marker.startsWith("[")) marker else "[$marker]"
             ).awaitAsOneOrNull()?.text
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // Evict broken DB connection so next attempt re-opens it
+            mutex.withLock { databases.remove(source.fileName) }
             null
         }
     }

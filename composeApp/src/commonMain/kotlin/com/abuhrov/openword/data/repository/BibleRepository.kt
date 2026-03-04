@@ -57,6 +57,6 @@ suspend fun getCommentariesForVerse(verse: Verse): List<CommentaryItem> = withCo
     CommentaryRepository.getCommentaries(verse)
 }
 
-suspend fun getCommentaryForMarker(bookId: Long, chapter: Long, marker: Long, source: CommentarySource): String? = withContext(ioDispatcher) {
-    CommentaryRepository.getMarkerNote(bookId, chapter, marker, source)
+suspend fun getCommentaryForMarker(bookId: Long, chapter: Long, verse: Long, marker: String, source: CommentarySource): String? = withContext(ioDispatcher) {
+    CommentaryRepository.getMarkerNote(bookId, chapter, verse, marker, source)
 }

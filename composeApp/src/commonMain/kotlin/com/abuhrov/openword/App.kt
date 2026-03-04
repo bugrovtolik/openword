@@ -4,6 +4,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.abuhrov.openword.data.config.availableTranslations
 import com.abuhrov.openword.data.local.clearAllLocalData
 import com.abuhrov.openword.data.platform.loadAppFont
@@ -31,6 +33,8 @@ fun App() {
     val currentFont = loadAppFont()
 
     AppTheme(fontSizeScale = fontSizeScale, currentFont = currentFont) {
+        val clipboardManager = LocalClipboardManager.current
+
         // Init State from Settings
         val savedTranslationId = Settings.getString(Constants.SettingsKeys.LAST_TRANSLATION, availableTranslations.first().id)
         val savedBookId = Settings.getLong(Constants.SettingsKeys.LAST_BOOK, Constants.DEFAULT_BOOK_ID)
@@ -49,6 +53,9 @@ fun App() {
         var selectedChapter by remember { mutableStateOf(savedChapter) }
         var selectedVerse by remember { mutableStateOf(savedVerse) }
 
+        // Multi-verse selection state (lifted from BibleReaderScreen)
+        var selectedVerses by remember { mutableStateOf(setOf<Verse>()) }
+
         // Data State
         var currentVerses by remember { mutableStateOf<List<Verse>>(emptyList()) }
 
@@ -57,7 +64,7 @@ fun App() {
         var currentVocabularyList by remember { mutableStateOf<List<LexiconEntry>>(emptyList()) }
         var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
-        var showAIPopupForVerse by remember { mutableStateOf<Verse?>(null) }
+        var showAIPopupForVerses by remember { mutableStateOf<List<Verse>?>(null) }
         var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
         var pendingStrongCode by remember { mutableStateOf<String?>(null) }
 
@@ -67,6 +74,9 @@ fun App() {
 
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
+
+        // Helper to clear verse selection
+        val clearSelection = { selectedVerses = emptySet() }
 
         // --- NAVIGATION HELPERS ---
         val onNextChapter: () -> Unit = {
@@ -82,6 +92,7 @@ fun App() {
                         selectedVerse = 1L
                     }
                 }
+                clearSelection()
                 scope.launch { listState.scrollToItem(0) }
             }
         }
@@ -91,6 +102,7 @@ fun App() {
                 if (selectedChapter > 1) {
                     selectedChapter -= 1
                     selectedVerse = 1L
+                    clearSelection()
                     scope.launch { listState.scrollToItem(0) }
                 } else {
                     val currentIndex = bible!!.books.indexOfFirst { it.id == selectedBook!!.id }
@@ -99,6 +111,7 @@ fun App() {
                         selectedBook = prevBook
                         selectedChapter = prevBook.chapterCount
                         selectedVerse = 1L
+                        clearSelection()
                         scope.launch { listState.scrollToItem(0) }
                     }
                 }
@@ -183,9 +196,38 @@ fun App() {
                     selectedBook = selectedBook,
                     selectedChapter = selectedChapter,
                     selectedVerse = selectedVerse,
-                    onTranslationClick = { showTranslationSelection = true },
-                    onNavigationClick = { navMode = NavMode.BOOK; showNavSelection = true },
-                    onSettingsClick = { showSettingsDialog = true }
+                    selectedVerses = selectedVerses,
+                    onTranslationClick = { clearSelection(); showTranslationSelection = true },
+                    onNavigationClick = { clearSelection(); navMode = NavMode.BOOK; showNavSelection = true },
+                    onSettingsClick = { clearSelection(); showSettingsDialog = true },
+                    onCopyVerses = {
+                        if (selectedVerses.isNotEmpty() && selectedBook != null) {
+                            val sortedVerses = selectedVerses.sortedBy { it.number }
+                            val verseNumbers = formatVerseNumbers(sortedVerses.map { it.number })
+                            val verseTexts = sortedVerses.joinToString("\n") { stripTags(it.text) }
+                            clipboardManager.setText(AnnotatedString("${selectedBook!!.name} $selectedChapter:$verseNumbers\n$verseTexts"))
+                            clearSelection()
+                        }
+                    },
+                    onShowCommentaries = {
+                        if (selectedVerses.size == 1) {
+                            showCommentariesForVerse = selectedVerses.first()
+                            clearSelection()
+                        }
+                    },
+                    onShowVocabulary = {
+                        if (selectedVerses.size == 1) {
+                            showVocabularyForVerse = selectedVerses.first()
+                            clearSelection()
+                        }
+                    },
+                    onShowAI = {
+                        if (selectedVerses.isNotEmpty()) {
+                            showAIPopupForVerses = selectedVerses.sortedBy { it.number }
+                            clearSelection()
+                        }
+                    },
+                    onClearSelection = { clearSelection() }
                 )
             }
         ) { padding ->
@@ -198,6 +240,7 @@ fun App() {
                 selectedChapter = selectedChapter,
                 selectedVerse = selectedVerse,
                 currentVerses = currentVerses,
+                selectedVerses = selectedVerses,
                 fontSizeScale = fontSizeScale,
                 commentarySource = selectedTranslation.commentarySource,
                 listState = listState,
@@ -205,10 +248,23 @@ fun App() {
                 onNextChapter = onNextChapter,
                 onPreviousChapter = onPreviousChapter,
                 onVerseSelected = { selectedVerse = it },
-                onShowCommentaries = { showCommentariesForVerse = it },
-                onShowVocabulary = { showVocabularyForVerse = it },
-                onShowAI = { showAIPopupForVerse = it },
-                onDoubleTapStrong = { verse, code -> pendingStrongCode = code; showVocabularyForVerse = verse }
+                onVerseLongPressed = { verse ->
+                    selectedVerses = if (verse in selectedVerses) {
+                        selectedVerses - verse
+                    } else {
+                        selectedVerses + verse
+                    }
+                },
+                onVerseTapped = { verse ->
+                    if (verse in selectedVerses) {
+                        // Tapping a selected verse deselects it
+                        selectedVerses = selectedVerses - verse
+                    } else {
+                        // Tapping an unselected verse adds it
+                        selectedVerses = selectedVerses + verse
+                    }
+                },
+                onDoubleTapStrong = { verse, code -> clearSelection(); pendingStrongCode = code; showVocabularyForVerse = verse }
             )
         }
 
@@ -228,8 +284,16 @@ fun App() {
             )
         }
 
-        if (showAIPopupForVerse != null) {
-            AIPopup(verseRef = "${selectedBook?.name} $selectedChapter:${showAIPopupForVerse!!.number}\n${stripTags(showAIPopupForVerse!!.text)}", onDismiss = { showAIPopupForVerse = null })
+        if (showAIPopupForVerses != null) {
+            val aiVerses = showAIPopupForVerses!!
+            val verseRef = if (aiVerses.size == 1) {
+                "${selectedBook?.name} $selectedChapter:${aiVerses.first().number}\n${stripTags(aiVerses.first().text)}"
+            } else {
+                val verseNumbers = formatVerseNumbers(aiVerses.map { it.number })
+                val verseTexts = aiVerses.joinToString("\n") { "${it.number}: ${stripTags(it.text)}" }
+                "${selectedBook?.name} $selectedChapter:$verseNumbers (кілька віршів)\n$verseTexts"
+            }
+            AIPopup(verseRef = verseRef, onDismiss = { showAIPopupForVerses = null })
         }
 
         if (showTranslationSelection) {
@@ -262,4 +326,24 @@ fun App() {
             )
         }
     }
+}
+
+private fun formatVerseNumbers(numbers: List<Long>): String {
+    if (numbers.isEmpty()) return ""
+    val sorted = numbers.sorted()
+    val parts = mutableListOf<String>()
+    var rangeStart = sorted[0]
+    var rangeEnd = sorted[0]
+
+    for (i in 1 until sorted.size) {
+        if (sorted[i] == rangeEnd + 1) {
+            rangeEnd = sorted[i]
+        } else {
+            parts.add(if (rangeStart == rangeEnd) "$rangeStart" else "$rangeStart-$rangeEnd")
+            rangeStart = sorted[i]
+            rangeEnd = sorted[i]
+        }
+    }
+    parts.add(if (rangeStart == rangeEnd) "$rangeStart" else "$rangeStart-$rangeEnd")
+    return parts.joinToString(",")
 }
