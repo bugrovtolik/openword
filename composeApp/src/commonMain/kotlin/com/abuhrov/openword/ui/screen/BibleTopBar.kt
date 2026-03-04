@@ -70,7 +70,7 @@ fun BibleTopBar(
                         )
                     }
                     IconButton(onClick = onShowAI) {
-                        Icon(Icons.Default.AutoAwesome, "AI", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.Assistant, "AI", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
                 IconButton(onClick = onClearSelection) {
@@ -80,7 +80,7 @@ fun BibleTopBar(
                 // Normal mode: translation, location, settings
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TopBarButton(selectedTranslation.id) { onTranslationClick() }
-                    val locationLabel = if (selectedBook != null) "${selectedBook.name} $selectedChapter:$selectedVerse" else "Оберіть книгу"
+                    val locationLabel = if (selectedBook != null) "${selectedBook.shortName} $selectedChapter:$selectedVerse" else "Оберіть книгу"
                     TopBarButton(locationLabel) { onNavigationClick() }
                 }
                 IconButton(onClick = { onSettingsClick() }) {
