@@ -12,54 +12,100 @@ import androidx.compose.ui.unit.sp
 
 fun parseBibleText(text: String): AnnotatedString {
     val cleanText = text.removeNotes().replace(Regex("^(\\s*<pb/>)+"), "")
-    val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[(\\d+)\\])")
+    val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
+    val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[(\\d+)\\])|([$wordChars'-]+)\\*")
 
     return buildAnnotatedString {
         var lastIndex = 0
-        val shadowText = StringBuilder()
+        val plainText = StringBuilder()
         var fMarkerStart = -1 // Position where <f> content starts in the annotated string
         val fMarkerOriginal = StringBuilder() // Accumulates original (undecoded) marker text for DB lookup
+
+        fun appendText(str: String) {
+            append(str)
+            plainText.append(str)
+        }
+
+        fun attachToPreviousWord(markerAnnotation: String): Boolean {
+            if (plainText.isEmpty()) return false
+            var end = plainText.length - 1
+            // skip trailing spaces/punctuation
+            while (end >= 0 && (plainText[end].isWhitespace() || plainText[end].isPunctuation())) {
+                end--
+            }
+            if (end < 0) return false // No word found
+            
+            var start = end
+            while (start >= 0 && !plainText[start].isWhitespace() && !plainText[start].isPunctuation()) {
+                start--
+            }
+            start++ // first char of the word
+            
+            if (start <= end) {
+                addStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerAnnotation, start = start, end = end + 1)
+                addStyle(SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), start, end + 1)
+                return true
+            }
+            return false
+        }
 
         tagPattern.findAll(cleanText).forEach { matchResult ->
             val before = cleanText.substring(lastIndex, matchResult.range.first)
             if (fMarkerStart >= 0) {
-                // Inside <f>...</f> — append decoded for display, accumulate original for annotation
+                // Inside <f>...</f> — ONLY accumulate original for annotation, don't append yet
                 fMarkerOriginal.append(before)
-                withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
-                    append(decodeCircledLetters(before))
-                }
             } else {
-                append(before)
+                appendText(before)
             }
-            shadowText.append(before)
 
             val tag = matchResult.value
 
             // When inside <f>...</f>, only handle </f> closing tag, append everything else as marker text
             if (fMarkerStart >= 0) {
                 if (tag == "</f>") {
-                    addStringAnnotation(tag = "COMMENTARY_MARKER", annotation = fMarkerOriginal.toString(), start = fMarkerStart, end = this.length)
+                    val markerContent = fMarkerOriginal.toString()
+                    val isNumeric = markerContent.isNotEmpty() && markerContent.all { it.isDigit() || it.isWhitespace() || it in ".,- " }
+                        && markerContent.any { it.isDigit() }
+                    var attached = false
+                    if (isNumeric) {
+                        attached = attachToPreviousWord(markerContent)
+                    }
+                    if (!attached) {
+                        pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerContent)
+                        withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                            appendText(decodeCircledLetters(markerContent))
+                        }
+                        pop()
+                    }
                     fMarkerOriginal.clear()
                     fMarkerStart = -1
                 } else {
-                    // Append matched content (like [1]) as styled marker text
                     fMarkerOriginal.append(tag)
-                    withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
-                        append(decodeCircledLetters(tag))
-                    }
                 }
                 lastIndex = matchResult.range.last + 1
                 return@forEach
             }
 
-            if (tag.startsWith("{")) {
+            if (tag.endsWith("*") && !tag.startsWith("<")) {
+                val word = matchResult.groupValues[5]
+                val exists = com.abuhrov.openword.data.repository.DictionaryRepository.hasDefinitionSync(word)
+                if (exists) {
+                    pushStringAnnotation(tag = "DICTIONARY_WORD", annotation = word)
+                    withStyle(SpanStyle(color = Color(0xFF00796B), textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)) {
+                        appendText(word)
+                    }
+                    pop()
+                } else {
+                    appendText(word)
+                }
+            } else if (tag.startsWith("{")) {
                 val code = tag.removeSurrounding("{", "}")
-                val currentLength = shadowText.length
+                val currentLength = plainText.length
                 if (currentLength > 0) {
                     var wordStart = currentLength - 1
-                    while (wordStart >= 0 && shadowText[wordStart].isWhitespace()) wordStart--
+                    while (wordStart >= 0 && plainText[wordStart].isWhitespace()) wordStart--
                     val wordEnd = wordStart + 1
-                    while (wordStart >= 0 && !shadowText[wordStart].isWhitespace() && !shadowText[wordStart].isPunctuation()) wordStart--
+                    while (wordStart >= 0 && !plainText[wordStart].isWhitespace() && !plainText[wordStart].isPunctuation()) wordStart--
                     wordStart++
 
                     if (wordStart < wordEnd) {
@@ -68,11 +114,14 @@ fun parseBibleText(text: String): AnnotatedString {
                 }
             } else if (tag.startsWith("[")) {
                 val number = matchResult.groupValues[4]
-                pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = number)
-                withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
-                    append(number)
+                val attached = attachToPreviousWord(number)
+                if (!attached) {
+                    pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = number)
+                    withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                        appendText(number)
+                    }
+                    pop()
                 }
-                pop()
             } else {
                 when (tag) {
                     "<J>" -> pushStyle(SpanStyle(color = Color(0xFFB71C1C)))
@@ -94,10 +143,10 @@ fun parseBibleText(text: String): AnnotatedString {
             val remaining = cleanText.substring(lastIndex)
             if (fMarkerStart >= 0) {
                 withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
-                    append(remaining)
+                    appendText(remaining)
                 }
             } else {
-                append(remaining)
+                appendText(remaining)
             }
         }
     }
@@ -122,9 +171,10 @@ private fun decodeCircledLetters(text: String): String {
 }
 
 fun stripTags(text: String): String {
+    val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
     return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(
         text.removeNotes().replace(Regex("<f>.*?</f>\\s*"), ""), ""
-    )
+    ).replace(Regex("([$wordChars'-]+)\\*"), "$1")
 }
 
 fun normalizeStrongCode(code: String): String {

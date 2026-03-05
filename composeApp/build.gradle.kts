@@ -96,6 +96,11 @@ sqldelight {
             generateAsync = true
             srcDirs.setFrom("src/commonMain/sqldelight/commentaryDb")
         }
+        register("DictionaryDb") {
+            packageName = "com.abuhrov.openword.db"
+            generateAsync = true
+            srcDirs.setFrom("src/commonMain/sqldelight/dictionaryDb")
+        }
     }
 }
 

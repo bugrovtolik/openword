@@ -44,7 +44,12 @@ suspend fun loadBibleData(translation: Translation): Bible = withContext(ioDispa
         emptyList()
     }
     val books = rawBooks.map {
-        Book(it.book_number, it.long_name ?: "", it.short_name ?: "", it.chapter_count ?: 0L)
+        val longName = if (it.long_name != null && "*" in it.long_name) {
+            it.long_name.replace("*", "")
+        } else {
+            it.long_name ?: ""
+        }
+        Book(it.book_number, longName, it.short_name ?: "", it.chapter_count ?: 0L)
     }
     Bible(books, database)
 }

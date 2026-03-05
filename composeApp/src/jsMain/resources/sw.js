@@ -4,13 +4,14 @@ const PRECACHE_URLS = [
     './',
     'index.html',
     'composeApp.js',
+    'sql-wasm.wasm',
     'manifest.json',
+    'favicon.ico',
     'icons/icon-light-512.png',
     'icons/icon-dark-512.png',
     'icons/icon-192.png',
     'icons/icon-512.png',
-    'icons/icon-mono.png',
-    'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js'
+    'icons/icon-mono.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -39,9 +40,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
-    // FIX: Skip non-HTTP schemes (chrome-extension, etc.)
     if (!url.startsWith('http')) return;
-    // Skip non-GET requests
     if (event.request.method !== 'GET') return;
 
     event.respondWith(

@@ -11,6 +11,7 @@ object Constants {
 
     // --- Database ---
     const val LEXICON_DB_NAME = "vocabulary/lexicon.SQLite3"
+    const val DICTIONARY_DB_NAME = "vocabulary/GRM.dictionary.SQLite3"
     const val DATABASE_PREPARE_TIMEOUT_MS = 15_000L
 
     // --- Network ---

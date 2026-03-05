@@ -133,6 +133,7 @@ fun App() {
         LaunchedEffect(Unit) {
             launch(Dispatchers.Default) { VocabularyRepository.initialize() }
             launch(Dispatchers.Default) { CommentaryRepository.initialize() }
+            launch(Dispatchers.Default) { DictionaryRepository.initialize() }
         }
 
         // 1. Load Bible Metadata
@@ -206,7 +207,7 @@ fun App() {
                             val sortedVerses = selectedVerses.sortedBy { it.number }
                             val verseNumbers = formatVerseNumbers(sortedVerses.map { it.number })
                             val verseTexts = sortedVerses.joinToString("\n") { stripTags(it.text) }
-                            clipboardManager.setText(AnnotatedString("${selectedBook!!.name} $selectedChapter:$verseNumbers\n$verseTexts"))
+                            clipboardManager.setText(AnnotatedString("$verseTexts\n${selectedBook!!.shortName} $selectedChapter:$verseNumbers"))
                             clearSelection()
                         }
                     },
@@ -273,7 +274,7 @@ fun App() {
         // --- DIALOGS ---
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
-                selectedBookName = selectedBook?.name, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
+                selectedBookName = selectedBook?.shortName, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
                 vocabularyList = currentVocabularyList, selectedDefinition = selectedDefinition, autoTranslateEnabled = autoTranslate,
                 onSelectDefinition = { selectedDefinition = it }, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
             )
@@ -281,7 +282,7 @@ fun App() {
 
         if (showCommentariesForVerse != null) {
             CommentariesPopup(
-                bookName = selectedBook?.name, chapter = selectedChapter, verse = showCommentariesForVerse!!.number,
+                bookName = selectedBook?.shortName, chapter = selectedChapter, verse = showCommentariesForVerse!!.number,
                 commentaries = currentCommentariesList, autoTranslateEnabled = autoTranslate, onDismiss = { showCommentariesForVerse = null }
             )
         }
@@ -289,11 +290,11 @@ fun App() {
         if (showAIPopupForVerses != null) {
             val aiVerses = showAIPopupForVerses!!
             val verseRef = if (aiVerses.size == 1) {
-                "${selectedBook?.name} $selectedChapter:${aiVerses.first().number}\n${stripTags(aiVerses.first().text)}"
+                "${stripTags(aiVerses.first().text)}\n${selectedBook?.shortName} $selectedChapter:${aiVerses.first().number}"
             } else {
                 val verseNumbers = formatVerseNumbers(aiVerses.map { it.number })
                 val verseTexts = aiVerses.joinToString("\n") { "${it.number}: ${stripTags(it.text)}" }
-                "${selectedBook?.name} $selectedChapter:$verseNumbers (кілька віршів)\n$verseTexts"
+                "$verseTexts\n${selectedBook?.shortName} $selectedChapter:$verseNumbers"
             }
             AIPopup(verseRef = verseRef, onDismiss = { showAIPopupForVerses = null })
         }

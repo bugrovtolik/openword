@@ -14,11 +14,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.abuhrov.openword.data.repository.Bible
+import com.abuhrov.openword.data.repository.DictionaryRepository
 import com.abuhrov.openword.data.repository.getCommentaryForMarker
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.model.CommentarySource
@@ -56,6 +63,9 @@ fun BibleReaderScreen(
 ) {
     var showMarkerNote by remember { mutableStateOf<String?>(null) }
     var markerNotePosition by remember { mutableStateOf(IntOffset.Zero) }
+    var showDictionaryWord by remember { mutableStateOf<String?>(null) }
+    var dictionaryDefinition by remember { mutableStateOf<String?>(null) }
+    var dictionaryPopupPosition by remember { mutableStateOf(IntOffset.Zero) }
     var dragOffset by remember { mutableStateOf(0f) }
 
     Box(
@@ -82,23 +92,69 @@ fun BibleReaderScreen(
                 contentPadding = PaddingValues(bottom = 60.dp)
             ) {
                 item {
+                    val hasDictRef = selectedBook.name.endsWith("*") && DictionaryRepository.hasDefinitionSync(selectedBook.name)
+                    val headerText = remember(selectedBook.name, selectedChapter, hasDictRef) {
+                        buildAnnotatedString {
+                            if (hasDictRef) {
+                                pushStringAnnotation(tag = "DICTIONARY_WORD", annotation = selectedBook.name)
+                                withStyle(
+                                    SpanStyle(textDecoration = TextDecoration.Underline)
+                                ) {
+                                    append(selectedBook.name)
+                                }
+                                pop()
+                            } else {
+                                append(selectedBook.name)
+                            }
+                            append(" $selectedChapter")
+                        }
+                    }
+                    var headerLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                    var headerWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                     Text(
-                        text = "${selectedBook.name} $selectedChapter",
+                        text = headerText,
                         style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.padding(vertical = 16.dp),
+                        modifier = Modifier.padding(vertical = 16.dp)
+                            .onGloballyPositioned { coords ->
+                                headerWindowOffset = coords.positionInWindow()
+                            }
+                            .pointerInput(hasDictRef) {
+                                if (hasDictRef) {
+                                    detectTapGestures(onTap = { pos ->
+                                        headerLayoutResult?.let { layout ->
+                                            val offset = layout.getOffsetForPosition(pos)
+                                            val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
+                                            if (annotations.isNotEmpty()) {
+                                                val word = annotations.first().item
+                                                dictionaryPopupPosition = IntOffset((headerWindowOffset.x + pos.x).roundToInt(), (headerWindowOffset.y + pos.y).roundToInt())
+                                                scope.launch(Dispatchers.Default) {
+                                                    val def = com.abuhrov.openword.data.repository.DictionaryRepository.findDefinition(word)
+                                                    withContext(Dispatchers.Main) {
+                                                        showDictionaryWord = word
+                                                        dictionaryDefinition = def ?: "Не знайдено у словнику."
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    })
+                                }
+                            },
+                        onTextLayout = { headerLayoutResult = it },
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
 
                 items(currentVerses) { verse ->
                     Box(modifier = Modifier.fillMaxWidth()) {
-                        val mergeRegex = Regex("<n>(\\d+-\\d+)</n>")
+                        val mergeRegex = remember { Regex("<n>(\\d+-\\d+)</n>") }
                         val match = mergeRegex.find(verse.text)
 
                         val displayLabel = match?.groupValues?.get(1) ?: verse.number.toString()
 
-                        val styledText = parseBibleText("$displayLabel  ${verse.text}")
+                        val rawStyledText = "$displayLabel  ${verse.text}"
+                        val styledText = remember(rawStyledText) { parseBibleText(rawStyledText) }
                         var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                        var textWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
 
                         val isSelected = verse in selectedVerses
 
@@ -114,6 +170,9 @@ fun BibleReaderScreen(
                                     else Color.Transparent,
                                     shape = RoundedCornerShape(4.dp)
                                 )
+                                .onGloballyPositioned { coords ->
+                                    textWindowOffset = coords.positionInWindow()
+                                }
                                 .pointerInput(verse, selectedVerses.isNotEmpty()) {
                                     detectTapGestures(
                                         onTap = { pos ->
@@ -122,15 +181,37 @@ fun BibleReaderScreen(
                                                 onVerseTapped(verse)
                                                 return@detectTapGestures
                                             }
-                                            // No selection active — handle marker click
+                                            // No selection active — handle dictionary or marker click
                                             textLayoutResult?.let { layoutResult ->
                                                 val offset = layoutResult.getOffsetForPosition(pos)
+                                                // Check dictionary
+                                                val dictAnnotations = styledText.getStringAnnotations(tag = "DICTIONARY_WORD", start = offset, end = offset)
+                                                if (dictAnnotations.isNotEmpty()) {
+                                                    val word = dictAnnotations.first().item
+                                                    dictionaryPopupPosition = IntOffset((textWindowOffset.x + pos.x).roundToInt(), (textWindowOffset.y + pos.y).roundToInt())
+                                                    onVerseSelected(verse.number)
+                                                    scope.launch(Dispatchers.Default) {
+                                                        val def = com.abuhrov.openword.data.repository.DictionaryRepository.findDefinition(word)
+                                                        withContext(Dispatchers.Main) {
+                                                            if (def != null) {
+                                                                showDictionaryWord = word
+                                                                dictionaryDefinition = def
+                                                            } else {
+                                                                showDictionaryWord = word
+                                                                dictionaryDefinition = "Не знайдено у словнику."
+                                                            }
+                                                        }
+                                                    }
+                                                    return@detectTapGestures
+                                                }
+
+                                                // Check marker
                                                 val annotations = styledText.getStringAnnotations(tag = "COMMENTARY_MARKER", start = offset, end = offset)
                                                 if (annotations.isNotEmpty()) {
                                                     val markerId = annotations.first().item
                                                     val source = commentarySource
                                                     if (source != null) {
-                                                        markerNotePosition = IntOffset(pos.x.roundToInt(), pos.y.roundToInt())
+                                                        markerNotePosition = IntOffset((textWindowOffset.x + pos.x).roundToInt(), (textWindowOffset.y + pos.y).roundToInt())
                                                         onVerseSelected(verse.number)
                                                         scope.launch(Dispatchers.Default) {
                                                             try {
@@ -149,6 +230,8 @@ fun BibleReaderScreen(
                                             onVerseLongPressed(verse)
                                             onVerseSelected(verse.number)
                                             showMarkerNote = null
+                                            showDictionaryWord = null
+                                            dictionaryDefinition = null
                                         },
                                         onDoubleTap = { pos ->
                                             if (selectedVerses.isNotEmpty()) return@detectTapGestures
@@ -165,16 +248,53 @@ fun BibleReaderScreen(
                                     )
                                 }
                         )
-
-                        if (showMarkerNote != null && selectedVerse == verse.number && selectedVerses.isEmpty()) {
-                            MarkerNotePopup(
-                                text = showMarkerNote!!,
-                                offset = markerNotePosition,
-                                onDismiss = { showMarkerNote = null }
-                            )
-                        }
                     }
                 }
+            }
+
+            if (showMarkerNote != null && selectedVerses.isEmpty()) {
+                MarkerNotePopup(
+                    text = showMarkerNote!!,
+                    offset = markerNotePosition,
+                    onDismiss = { showMarkerNote = null }
+                )
+            }
+
+            if (showDictionaryWord != null && dictionaryDefinition != null && selectedVerses.isEmpty()) {
+                com.abuhrov.openword.ui.dialog.DictionaryPopup(
+                    word = showDictionaryWord!!,
+                    definition = dictionaryDefinition!!,
+                    offset = dictionaryPopupPosition,
+                    onDismiss = { 
+                        showDictionaryWord = null
+                        dictionaryDefinition = null
+                    },
+                    onReferenceClicked = { referenceUrl ->
+                        try {
+                            if (bible != null) {
+                                val parts = referenceUrl.replace("'", "").trim().split(Regex("\\s+"))
+                                if (parts.size >= 2) {
+                                    val bookId = parts[0].removePrefix("B:").toLong()
+                                    val currentChapVerse = parts[1].split(":")
+                                    val c = currentChapVerse[0].toLong()
+                                    val v = currentChapVerse[1].toLong()
+                                    scope.launch {
+                                        val verses = bible.getVerses(bookId, c)
+                                        val targetV = verses.find { it.number == v }
+                                        if (targetV != null) {
+                                            withContext(Dispatchers.Main) {
+                                                val cleanText = com.abuhrov.openword.util.stripTags(targetV.text)
+                                                dictionaryDefinition = "📜 ВІДДІЛ: $referenceUrl\n\n$cleanText"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                )
             }
         } else {
             Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {

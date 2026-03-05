@@ -1,0 +1,12 @@
+CREATE TABLE dictionary (
+    topic TEXT NOT NULL,
+    definition TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX dictionary_topic ON dictionary(topic);
+
+getAllTopics:
+SELECT topic FROM dictionary;
+
+getDefinitionForTopic:
+SELECT definition FROM dictionary WHERE topic = ?;
