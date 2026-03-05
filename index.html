@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>OpenWord</title>
 
     <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="OpenWord">
 
-    <script type="application/javascript" src="composeApp.js"></script>
+    <script src="composeApp.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
 
     <style>
@@ -36,43 +36,37 @@
             /* Use dvh for better mobile viewport handling */
             height: 100dvh;
             margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background-color: #121212;
-        }
-
-        /* Compose typically targets the body or a specific div.
-           If you need to offset the notch via CSS instead of Kotlin: */
-        #compose-root {
-            width: 100%;
-            height: 100%;
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
+            padding-left: 0;
+            padding-right: 0;
+            overflow: hidden;
+            background-color: #121212;
             box-sizing: border-box;
         }
     </style>
 </head>
 
 <body>
-<div id="compose-root"></div>
+    <div id="compose-root"></div>
 
-<script>
-    // 1. Dynamic Icon Switcher for iOS
-    (function() {
-        const iconElement = document.getElementById('ios-pwa-icon');
-        const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        function updateIcon(e) {
-            iconElement.href = e.matches ? 'icons/icon-dark-512.png' : 'icons/icon-light-512.png';
+    <script>
+        // 1. Dynamic Icon Switcher for iOS
+        (function () {
+            const iconElement = document.getElementById('ios-pwa-icon');
+            const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            function updateIcon(e) {
+                iconElement.href = e.matches ? 'icons/icon-dark-512.png' : 'icons/icon-light-512.png';
+            }
+            updateIcon(darkModeQuery);
+            darkModeQuery.addEventListener('change', updateIcon);
+        })();
+
+        // 2. Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
         }
-        updateIcon(darkModeQuery);
-        darkModeQuery.addEventListener('change', updateIcon);
-    })();
-
-    // 2. Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-    }
-</script>
+    </script>
 </body>
 
 </html>
