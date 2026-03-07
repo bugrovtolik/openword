@@ -126,6 +126,8 @@ fun App() {
                 Settings.setLong(Constants.SettingsKeys.LAST_BOOK, selectedBook!!.id)
                 Settings.setLong(Constants.SettingsKeys.LAST_CHAPTER, selectedChapter)
                 Settings.setLong(Constants.SettingsKeys.LAST_VERSE, selectedVerse)
+                Settings.setLong("book_${selectedBook!!.id}_chapter", selectedChapter)
+                Settings.setLong("book_${selectedBook!!.id}_verse", selectedVerse)
             }
         }
 
@@ -306,7 +308,14 @@ fun App() {
         if (showNavSelection && bible != null) {
             NavigationSelectionDialog(
                 bible = bible!!, navMode = navMode, navViewMode = navViewMode, selectedBook = selectedBook, selectedChapter = selectedChapter, currentVerseCount = currentVerses.size,
-                onNavModeChange = { navMode = it }, onSelectBook = { selectedBook = it; selectedChapter = 1L; selectedVerse = 1L; navMode = NavMode.CHAPTER },
+                onNavModeChange = { navMode = it }, onSelectBook = { book ->
+                    selectedBook = book
+                    val savedCh = Settings.getLong("book_${book.id}_chapter", 1L)
+                    val savedVs = Settings.getLong("book_${book.id}_verse", 1L)
+                    selectedChapter = if (savedCh <= book.chapterCount) savedCh else 1L
+                    selectedVerse = savedVs
+                    navMode = NavMode.CHAPTER
+                },
                 onSelectChapter = { selectedChapter = it; selectedVerse = 1L; navMode = NavMode.VERSE },
                 onSelectVerse = { selectedVerse = it; showNavSelection = false; scope.launch { listState.scrollToItem(it.toInt()) } },
                 onDismiss = { showNavSelection = false }

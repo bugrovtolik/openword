@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openword-v4';
+const CACHE_NAME = 'openword-v5';
 
 const PRECACHE_URLS = [
     './',
@@ -43,18 +43,14 @@ self.addEventListener('fetch', (event) => {
     if (!url.startsWith('http')) return;
     if (event.request.method !== 'GET') return;
 
+    // Network-first: always try the server, fall back to cache for offline use
     event.respondWith(
-        caches.match(event.request).then(cached => {
-            if (cached) return cached;
-
-            return fetch(event.request).then(response => {
-                // Only cache valid, same-origin responses to be safe
-                if (response && response.status === 200 && response.type === 'basic') {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-                }
-                return response;
-            }).catch(() => caches.match(event.request));
-        })
+        fetch(event.request).then(response => {
+            if (response && response.status === 200 && response.type === 'basic') {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+            }
+            return response;
+        }).catch(() => caches.match(event.request))
     );
 });

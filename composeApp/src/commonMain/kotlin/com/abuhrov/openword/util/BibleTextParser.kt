@@ -11,7 +11,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 
 fun parseBibleText(text: String): AnnotatedString {
-    val cleanText = text.removeNotes().replace(Regex("^(\\s*<pb/>)+"), "")
+    val cleanText = text.removeNotes().removeWTags().replace(Regex("^(\\s*<pb/>)+"), "")
     val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
     val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[(\\d+)\\])|([$wordChars'-]+)\\*")
 
@@ -20,6 +20,7 @@ fun parseBibleText(text: String): AnnotatedString {
         val plainText = StringBuilder()
         var fMarkerStart = -1 // Position where <f> content starts in the annotated string
         val fMarkerOriginal = StringBuilder() // Accumulates original (undecoded) marker text for DB lookup
+        var fIsParenthesized = false // True if <f> appeared right after '('
 
         fun appendText(str: String) {
             append(str)
@@ -64,21 +65,27 @@ fun parseBibleText(text: String): AnnotatedString {
             if (fMarkerStart >= 0) {
                 if (tag == "</f>") {
                     val markerContent = fMarkerOriginal.toString()
-                    val isNumeric = markerContent.isNotEmpty() && markerContent.all { it.isDigit() || it.isWhitespace() || it in ".,- " }
-                        && markerContent.any { it.isDigit() }
-                    var attached = false
-                    if (isNumeric) {
-                        attached = attachToPreviousWord(markerContent)
-                    }
-                    if (!attached) {
-                        pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerContent)
-                        withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
-                            appendText(decodeCircledLetters(markerContent))
+                    if (fIsParenthesized) {
+                        // Parenthesized <f> — render as plain text
+                        appendText(markerContent)
+                    } else {
+                        val isNumeric = markerContent.isNotEmpty() && markerContent.all { it.isDigit() || it.isWhitespace() || it in ".,- " }
+                            && markerContent.any { it.isDigit() }
+                        var attached = false
+                        if (isNumeric) {
+                            attached = attachToPreviousWord(markerContent)
                         }
-                        pop()
+                        if (!attached) {
+                            pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerContent)
+                            withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
+                                appendText(decodeCircledLetters(markerContent))
+                            }
+                            pop()
+                        }
                     }
                     fMarkerOriginal.clear()
                     fMarkerStart = -1
+                    fIsParenthesized = false
                 } else {
                     fMarkerOriginal.append(tag)
                 }
@@ -129,6 +136,7 @@ fun parseBibleText(text: String): AnnotatedString {
                     "<i>" -> pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
                     "</i>" -> try { pop() } catch (e: Exception) {}
                     "<f>" -> {
+                        fIsParenthesized = plainText.isNotEmpty() && plainText.last() == '('
                         fMarkerStart = this.length
                     }
                     "</f>" -> {
@@ -157,6 +165,9 @@ private fun Char.isPunctuation(): Boolean = this in ",.;:!?"
 // Simplified note removal
 private fun String.removeNotes() = replace(Regex("<n>.*?</n>\\s*"), "")
 
+// Remove <w>...</w> tags and their content
+private fun String.removeWTags() = replace(Regex("<w>[^<]*</w>"), "")
+
 // Convert circled Unicode letters (ⓐ-ⓩ U+24D0..U+24E9) to regular lowercase letters for display
 private fun decodeCircledLetters(text: String): String {
     return buildString {
@@ -173,7 +184,7 @@ private fun decodeCircledLetters(text: String): String {
 fun stripTags(text: String): String {
     val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
     return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(
-        text.removeNotes().replace(Regex("<f>.*?</f>\\s*"), ""), ""
+        text.removeNotes().removeWTags().replace(Regex("<f>.*?</f>\\s*"), ""), ""
     ).replace(Regex("([$wordChars'-]+)\\*"), "$1")
 }
 
