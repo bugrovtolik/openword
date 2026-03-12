@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -12,6 +14,7 @@ import com.abuhrov.openword.data.config.availableTranslations
 import com.abuhrov.openword.data.local.clearAllLocalData
 import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
+import com.abuhrov.openword.domain.search.SearchIndexer
 import com.abuhrov.openword.model.*
 import com.abuhrov.openword.ui.dialog.*
 import com.abuhrov.openword.ui.screen.BibleReaderScreen
@@ -67,10 +70,13 @@ fun App() {
 
         var showTranslationSelection by remember { mutableStateOf(false) }
         var showNavSelection by remember { mutableStateOf(false) }
+        var showSearchDialog by remember { mutableStateOf(false) }
+        var currentSearchQuery by remember { mutableStateOf("") }
         var navMode by remember { mutableStateOf(NavMode.BOOK) }
 
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
+        val snackbarHostState = remember { SnackbarHostState() }
 
         val clearSelection = { selectedVerses = emptySet() }
 
@@ -153,6 +159,7 @@ fun App() {
                         selectedVerse = 1L
                     }
                 }
+                scope.launch { SearchIndexer.buildIndex(loadedBible, selectedTranslation.id) }
             } catch (e: Exception) {
                 loadError = e.message
                 bible = null
@@ -255,6 +262,8 @@ fun App() {
                     onTranslationClick = { clearSelection(); showTranslationSelection = true },
                     onNavigationClick = { clearSelection(); navMode = NavMode.BOOK; showNavSelection = true },
                     onSettingsClick = { clearSelection(); showSettingsDialog = true },
+                    onSearchClick = { query -> clearSelection(); currentSearchQuery = query; showSearchDialog = true },
+                    onSearchError = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                     onCopyVerses = {
                         if (selectedVerses.isNotEmpty() && selectedBook != null) {
                             val sortedVerses = selectedVerses.sortedBy { it.number }
@@ -291,6 +300,7 @@ fun App() {
                     onClearSelection = { clearSelection() }
                 )
             },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             contentWindowInsets = WindowInsets.safeDrawing
         ) { padding ->
             BibleReaderScreen(
@@ -405,6 +415,24 @@ fun App() {
                     }
                 },
                 onDismiss = { showSettingsDialog = false }
+            )
+        }
+
+        if (showSearchDialog) {
+            SearchDialog(
+                query = currentSearchQuery,
+                onSearch = { q -> SearchIndexer.search(q) },
+                onResultClick = { targetBookId, targetChapter, targetVerse ->
+                    val newBook = bible?.books?.find { it.id == targetBookId }
+                    if (newBook != null) {
+                        selectedBook = newBook
+                        selectedChapter = targetChapter
+                        selectedVerse = targetVerse
+                        showSearchDialog = false
+                        clearSelection()
+                    }
+                },
+                onDismiss = { showSearchDialog = false }
             )
         }
     }
