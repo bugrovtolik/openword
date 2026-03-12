@@ -23,6 +23,7 @@ SELECT
     books.book_number,
     books.short_name,
     books.long_name,
+    books.book_color,
     MAX(verses.chapter) AS chapter_count
 FROM books
 JOIN verses ON verses.book_number = books.book_number

@@ -12,13 +12,27 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.model.NavMode
 import com.abuhrov.openword.model.NavigationViewMode
 import com.abuhrov.openword.ui.components.NavigationGridItem
+
+private fun String?.toColorOrNull(): Color? {
+    if (this == null) return null
+    try {
+        if (this.startsWith("#")) {
+            val hex = this.substring(1)
+            val fullHex = if (hex.length == 6) "FF$hex" else hex
+            return Color(fullHex.toLong(16)).copy(alpha = 0.1f)
+        }
+    } catch (e: Exception) {}
+    return null
+}
 
 @Composable
 fun NavigationSelectionDialog(
@@ -36,28 +50,33 @@ fun NavigationSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.9f),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (navMode != NavMode.BOOK) {
-                    IconButton(onClick = { onNavModeChange(if (navMode == NavMode.VERSE) NavMode.CHAPTER else NavMode.BOOK) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                    IconButton(onClick = { onNavModeChange(if (navMode == NavMode.VERSE) NavMode.CHAPTER else NavMode.BOOK) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                    }
                 }
                 Text(when (navMode) {
-                    NavMode.BOOK -> "Select Book"
+                    NavMode.BOOK -> "Оберіть книгу"
                     NavMode.CHAPTER -> "${selectedBook?.name}"
                     NavMode.VERSE -> "${selectedBook?.name} $selectedChapter"
                 }, style = MaterialTheme.typography.titleMedium)
             }
         },
         text = {
-            Box(modifier = Modifier.height(400.dp).width(300.dp)) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 when (navMode) {
                     NavMode.BOOK -> {
                         when (navViewMode) {
                             NavigationViewMode.LIST -> {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(bible.books) { book ->
-                                        TextButton(onClick = { onSelectBook(book) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
-                                            Text(book.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = if (book == selectedBook) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth())
+                                        val bgColor = book.color.toColorOrNull() ?: Color.Transparent
+                                        Surface(color = bgColor, onClick = { onSelectBook(book) }, modifier = Modifier.fillMaxWidth()) {
+                                            Text(book.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = if (book == selectedBook) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().padding(12.dp))
                                         }
                                         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                     }
@@ -72,7 +91,8 @@ fun NavigationSelectionDialog(
                                     items(bible.books) { book ->
                                         NavigationGridItem(
                                             text = book.shortName,
-                                            isSelected = book == selectedBook
+                                            isSelected = book == selectedBook,
+                                            bgColor = book.color.toColorOrNull()
                                         ) { onSelectBook(book) }
                                     }
                                 }
@@ -98,6 +118,6 @@ fun NavigationSelectionDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрити") } }
     )
 }

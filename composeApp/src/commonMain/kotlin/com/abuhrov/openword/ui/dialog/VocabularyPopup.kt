@@ -64,7 +64,7 @@ fun VocabularyPopup(
                 Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (selectedDefinition != null) {
-                            IconButton(onClick = { onSelectDefinition(null) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                            IconButton(onClick = { onSelectDefinition(null) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                         }
                         Column {
                             Text(selectedDefinition?.strongCode ?: "Vocabulary", style = MaterialTheme.typography.titleMedium)
@@ -79,7 +79,7 @@ fun VocabularyPopup(
                                 Text(if (showTranslated) "Оригінал" else "Переклад")
                             }
                         }
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                     }
                 }
 

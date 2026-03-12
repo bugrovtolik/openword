@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -17,23 +18,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun NavigationGridItem(number: Long, isSelected: Boolean, onClick: () -> Unit) {
-    NavigationGridItem(text = number.toString(), isSelected = isSelected, onClick = onClick)
+fun NavigationGridItem(number: Long, isSelected: Boolean, bgColor: Color? = null, onClick: () -> Unit) {
+    NavigationGridItem(text = number.toString(), isSelected = isSelected, bgColor = bgColor, onClick = onClick)
 }
 
 @Composable
-fun NavigationGridItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
+fun NavigationGridItem(text: String, isSelected: Boolean, bgColor: Color? = null, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.medium,
-        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        color = if (isSelected) MaterialTheme.colorScheme.primary else (bgColor ?: MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.height(50.dp).fillMaxWidth()
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
             Text(
                 text = text,
                 fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 lineHeight = 12.sp,
                 color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

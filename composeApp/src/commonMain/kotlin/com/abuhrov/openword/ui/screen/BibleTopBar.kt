@@ -31,6 +31,7 @@ fun BibleTopBar(
     onCopyVerses: () -> Unit,
     onShowCommentaries: () -> Unit,
     onShowVocabulary: () -> Unit,
+    onShowCrossReferences: () -> Unit,
     onShowAI: () -> Unit,
     onClearSelection: () -> Unit
 ) {
@@ -44,7 +45,6 @@ fun BibleTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelectionMode) {
-                // Selection mode: action buttons
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "${selectedVerses.size}",
@@ -69,6 +69,13 @@ fun BibleTopBar(
                             else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
                         )
                     }
+                    IconButton(onClick = onShowCrossReferences, enabled = isSingleSelection) {
+                        Icon(
+                            Icons.Default.CompareArrows, "Перехресні посилання",
+                            tint = if (isSingleSelection) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
+                        )
+                    }
                     IconButton(onClick = onShowAI) {
                         Icon(Icons.Default.Assistant, "AI", tint = MaterialTheme.colorScheme.onPrimary)
                     }
@@ -77,7 +84,6 @@ fun BibleTopBar(
                     Icon(Icons.Default.Close, "Скасувати вибір", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             } else {
-                // Normal mode: translation, location, settings
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TopBarButton(selectedTranslation.id) { onTranslationClick() }
                     val locationLabel = if (selectedBook != null) "${selectedBook.shortName} $selectedChapter:$selectedVerse" else "Оберіть книгу"

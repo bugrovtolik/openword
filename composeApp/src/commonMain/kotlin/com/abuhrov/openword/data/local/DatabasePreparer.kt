@@ -16,6 +16,7 @@ suspend fun clearAllLocalData() = withContext(ioDispatcher) {
     availableTranslations.forEach { deleteDatabaseFile(it.fileName.substringAfterLast('/')) }
     availableCommentaries.forEach { deleteDatabaseFile(it.fileName.substringAfterLast('/')) }
     CommentaryRepository.clearCache()
+    deleteDatabaseFile(Constants.CROSS_REFERENCE_DB_NAME.substringAfterLast('/'))
 }
 
 suspend fun prepareDatabaseFile(fileName: String) {

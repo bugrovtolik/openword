@@ -15,7 +15,6 @@ import org.khronos.webgl.Int8Array
 actual class DatabaseDriverFactory {
     actual suspend fun createDriver(dbName: String): SqlDriver {
 
-        // 1. Initialize SQL.js (Main Thread)
         val SQL = try {
             initSqlJsSafe().await()
         } catch (e: Throwable) {
@@ -23,10 +22,8 @@ actual class DatabaseDriverFactory {
             throw RuntimeException("Failed to initialize SQL.js. Ensure index.html uses version 1.12.0", e)
         }
 
-        // 2. Load Database Bytes
         val dbBytes = BibleDataCache.map[dbName]
 
-        // 3. Create Database Object
         val db = try {
             if (dbBytes != null && dbBytes.length > 0) {
                 createNewDatabase(SQL, dbBytes)
@@ -38,7 +35,6 @@ actual class DatabaseDriverFactory {
             throw RuntimeException("Failed to open DB $dbName", e)
         }
 
-        // 4. Return Custom Main-Thread Driver
         return MainThreadSqlDriver(db)
     }
 }

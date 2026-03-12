@@ -1,0 +1,20 @@
+CREATE TABLE cross_references (
+    book           INTEGER NOT NULL,
+    chapter        INTEGER NOT NULL,
+    verse          INTEGER NOT NULL,
+    verse_end      INTEGER,
+    book_to        INTEGER NOT NULL,
+    chapter_to     INTEGER NOT NULL,
+    verse_to_start INTEGER NOT NULL,
+    verse_to_end   INTEGER,
+    votes          INTEGER
+);
+
+CREATE INDEX book_and_chapter ON cross_references(book, chapter);
+CREATE INDEX book_and_chapter_to ON cross_references(book_to, chapter_to);
+
+getCrossReferences:
+SELECT *
+FROM cross_references
+WHERE book = ? AND chapter = ? AND verse <= ? AND (verse_end IS NULL OR verse_end >= ?)
+ORDER BY votes DESC;

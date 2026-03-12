@@ -86,7 +86,7 @@ fun CommentariesPopup(
                                 Text(if (showTranslated) "Оригінал" else "Переклад")
                             }
                         }
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                     }
                 }
 

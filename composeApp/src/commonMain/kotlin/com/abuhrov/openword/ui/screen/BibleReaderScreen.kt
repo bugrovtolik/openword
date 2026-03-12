@@ -126,9 +126,12 @@ fun BibleReaderScreen(
                                             val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
                                             if (annotations.isNotEmpty()) {
                                                 val word = annotations.first().item
-                                                dictionaryPopupPosition = IntOffset((headerWindowOffset.x + pos.x).roundToInt(), (headerWindowOffset.y + pos.y).roundToInt())
+                                                dictionaryPopupPosition = IntOffset(
+                                                    (headerWindowOffset.x + pos.x).roundToInt(),
+                                                    (headerWindowOffset.y + pos.y).roundToInt() - 300
+                                                )
                                                 scope.launch(Dispatchers.Default) {
-                                                    val def = com.abuhrov.openword.data.repository.DictionaryRepository.findDefinition(word)
+                                                    val def = DictionaryRepository.findDefinition(word)
                                                     withContext(Dispatchers.Main) {
                                                         showDictionaryWord = word
                                                         dictionaryDefinition = def ?: "Не знайдено у словнику."
@@ -177,18 +180,18 @@ fun BibleReaderScreen(
                                     detectTapGestures(
                                         onTap = { pos ->
                                             if (selectedVerses.isNotEmpty()) {
-                                                // Selection mode active: short tap adds/removes verse
                                                 onVerseTapped(verse)
                                                 return@detectTapGestures
                                             }
-                                            // No selection active — handle dictionary or marker click
                                             textLayoutResult?.let { layoutResult ->
                                                 val offset = layoutResult.getOffsetForPosition(pos)
-                                                // Check dictionary
                                                 val dictAnnotations = styledText.getStringAnnotations(tag = "DICTIONARY_WORD", start = offset, end = offset)
                                                 if (dictAnnotations.isNotEmpty()) {
                                                     val word = dictAnnotations.first().item
-                                                    dictionaryPopupPosition = IntOffset((textWindowOffset.x + pos.x).roundToInt(), (textWindowOffset.y + pos.y).roundToInt())
+                                                    dictionaryPopupPosition = IntOffset(
+                                                        (textWindowOffset.x + pos.x).roundToInt(),
+                                                        (textWindowOffset.y + pos.y).roundToInt() - 100
+                                                    )
                                                     onVerseSelected(verse.number)
                                                     scope.launch(Dispatchers.Default) {
                                                         val def = com.abuhrov.openword.data.repository.DictionaryRepository.findDefinition(word)
@@ -205,13 +208,15 @@ fun BibleReaderScreen(
                                                     return@detectTapGestures
                                                 }
 
-                                                // Check marker
                                                 val annotations = styledText.getStringAnnotations(tag = "COMMENTARY_MARKER", start = offset, end = offset)
                                                 if (annotations.isNotEmpty()) {
                                                     val markerId = annotations.first().item
                                                     val source = commentarySource
                                                     if (source != null) {
-                                                        markerNotePosition = IntOffset((textWindowOffset.x + pos.x).roundToInt(), (textWindowOffset.y + pos.y).roundToInt())
+                                                        markerNotePosition = IntOffset(
+                                                            (textWindowOffset.x + pos.x).roundToInt(),
+                                                            (textWindowOffset.y + pos.y).roundToInt() - 300
+                                                        )
                                                         onVerseSelected(verse.number)
                                                         scope.launch(Dispatchers.Default) {
                                                             try {
@@ -226,7 +231,6 @@ fun BibleReaderScreen(
                                             }
                                         },
                                         onLongPress = { _ ->
-                                            // Long press toggles verse in selection
                                             onVerseLongPressed(verse)
                                             onVerseSelected(verse.number)
                                             showMarkerNote = null

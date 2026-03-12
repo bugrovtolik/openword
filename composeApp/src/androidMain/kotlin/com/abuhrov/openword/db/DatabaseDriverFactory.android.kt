@@ -13,10 +13,11 @@ object AndroidContext {
 
 actual class DatabaseDriverFactory {
     actual suspend fun createDriver(dbName: String): SqlDriver {
+        val dbFile = java.io.File(AndroidContext.applicationContext.filesDir, dbName)
         return AndroidSqliteDriver(
             schema = NoOpSchema,
             context = AndroidContext.applicationContext,
-            name = dbName
+            name = dbFile.absolutePath
         )
     }
 }

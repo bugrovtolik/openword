@@ -49,7 +49,7 @@ suspend fun loadBibleData(translation: Translation): Bible = withContext(ioDispa
         } else {
             it.long_name ?: ""
         }
-        Book(it.book_number, longName, it.short_name ?: "", it.chapter_count ?: 0L)
+        Book(it.book_number, longName, it.short_name ?: "", it.chapter_count ?: 0L, it.book_color)
     }
     Bible(books, database)
 }

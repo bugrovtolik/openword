@@ -21,58 +21,35 @@ object DictionaryRepository {
         }
     }
 
+    private fun findMatchingTopic(topics: List<String>, lowerWord: String): String? {
+        var matchedTopic = topics.find { it.lowercase() == lowerWord }
+        if (matchedTopic == null) {
+            matchedTopic = topics.filter { it.lowercase().let { lowerWord.startsWith(it.take(3)) } }
+                .maxByOrNull { topic ->
+                    val lowerTopic = topic.lowercase()
+                    var i = 0
+                    while (i < lowerWord.length && i < lowerTopic.length && lowerWord[i] == lowerTopic[i]) i++
+                    i
+                }
+        }
+        return matchedTopic
+    }
+
     fun hasDefinitionSync(word: String): Boolean {
         val cache = topicsCache ?: return false
-        val lowerWord = word.lowercase()
-        
-        var matchedTopic = cache.find { it.lowercase() == lowerWord }
-        if (matchedTopic == null) {
-            matchedTopic = cache.filter { topic ->
-                val lowerTopic = topic.lowercase()
-                lowerWord.startsWith(lowerTopic.take(3))
-            }.maxByOrNull { topic ->
-                var commonLength = 0
-                val lowerTopic = topic.lowercase()
-                while (commonLength < lowerWord.length && commonLength < lowerTopic.length &&
-                    lowerWord[commonLength] == lowerTopic[commonLength]) {
-                    commonLength++
-                }
-                commonLength
-            }
-        }
-        return matchedTopic != null
+        return findMatchingTopic(cache, word.lowercase()) != null
     }
 
     suspend fun findDefinition(word: String): String? = withContext(ioDispatcher) {
         val db = ensureInitialized() ?: return@withContext null
         
-        // Use lowercase for matching
         val lowerWord = word.lowercase()
-        
         if (memoryCache.containsKey(lowerWord)) {
             return@withContext memoryCache[lowerWord]!!
         }
 
-        // Exact match first (case insensitive)
         val allTopics = getTopics(db)
-        var matchedTopic = allTopics.find { it.lowercase() == lowerWord }
-
-        // If not exact match, try longest common prefix logic (at least 3 characters)
-        if (matchedTopic == null) {
-            matchedTopic = allTopics.filter { topic ->
-                val lowerTopic = topic.lowercase()
-                lowerWord.startsWith(lowerTopic.take(3)) // At least first 3 chars match
-            }.maxByOrNull { topic ->
-                // The topic that has the longest common prefix is the best match
-                var commonLength = 0
-                val lowerTopic = topic.lowercase()
-                while (commonLength < lowerWord.length && commonLength < lowerTopic.length &&
-                    lowerWord[commonLength] == lowerTopic[commonLength]) {
-                    commonLength++
-                }
-                commonLength
-            }
-        }
+        val matchedTopic = findMatchingTopic(allTopics, lowerWord)
 
         if (matchedTopic != null) {
             val definition = db.dictionaryQueries.getDefinitionForTopic(matchedTopic).awaitAsOneOrNull()

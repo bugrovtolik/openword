@@ -11,16 +11,19 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 
 fun parseBibleText(text: String): AnnotatedString {
-    val cleanText = text.removeNotes().removeWTags().replace(Regex("^(\\s*<pb/>)+"), "")
+    val cleanText = text.removeNotes()
+        .removeWTags()
+        .replace(Regex("^(\\s*<pb/>)+"), "")
+        .replace(Regex("<f>[\u24D0-\u24E9]+</f>"), "")
     val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
     val tagPattern = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[(\\d+)\\])|([$wordChars'-]+)\\*")
 
     return buildAnnotatedString {
         var lastIndex = 0
         val plainText = StringBuilder()
-        var fMarkerStart = -1 // Position where <f> content starts in the annotated string
-        val fMarkerOriginal = StringBuilder() // Accumulates original (undecoded) marker text for DB lookup
-        var fIsParenthesized = false // True if <f> appeared right after '('
+        var fMarkerStart = -1
+        val fMarkerOriginal = StringBuilder()
+        var fIsParenthesized = false
 
         fun appendText(str: String) {
             append(str)
@@ -30,17 +33,16 @@ fun parseBibleText(text: String): AnnotatedString {
         fun attachToPreviousWord(markerAnnotation: String): Boolean {
             if (plainText.isEmpty()) return false
             var end = plainText.length - 1
-            // skip trailing spaces/punctuation
             while (end >= 0 && (plainText[end].isWhitespace() || plainText[end].isPunctuation())) {
                 end--
             }
-            if (end < 0) return false // No word found
+            if (end < 0) return false
             
             var start = end
             while (start >= 0 && !plainText[start].isWhitespace() && !plainText[start].isPunctuation()) {
                 start--
             }
-            start++ // first char of the word
+            start++
             
             if (start <= end) {
                 addStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerAnnotation, start = start, end = end + 1)
@@ -53,7 +55,6 @@ fun parseBibleText(text: String): AnnotatedString {
         tagPattern.findAll(cleanText).forEach { matchResult ->
             val before = cleanText.substring(lastIndex, matchResult.range.first)
             if (fMarkerStart >= 0) {
-                // Inside <f>...</f> — ONLY accumulate original for annotation, don't append yet
                 fMarkerOriginal.append(before)
             } else {
                 appendText(before)
@@ -61,22 +62,21 @@ fun parseBibleText(text: String): AnnotatedString {
 
             val tag = matchResult.value
 
-            // When inside <f>...</f>, only handle </f> closing tag, append everything else as marker text
             if (fMarkerStart >= 0) {
                 if (tag == "</f>") {
                     val markerContent = fMarkerOriginal.toString()
                     if (fIsParenthesized) {
-                        // Parenthesized <f> — render as plain text
                         appendText(markerContent)
                     } else {
-                        val isNumeric = markerContent.isNotEmpty() && markerContent.all { it.isDigit() || it.isWhitespace() || it in ".,- " }
-                            && markerContent.any { it.isDigit() }
+                        val cleanMarker = markerContent.replace(Regex("[\\[\\]()]"), "")
+                        val isNumeric = cleanMarker.isNotEmpty() && cleanMarker.all { it.isDigit() || it.isWhitespace() || it in ".,- " }
+                            && cleanMarker.any { it.isDigit() }
                         var attached = false
                         if (isNumeric) {
-                            attached = attachToPreviousWord(markerContent)
+                            attached = attachToPreviousWord(cleanMarker)
                         }
                         if (!attached) {
-                            pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = markerContent)
+                            pushStringAnnotation(tag = "COMMENTARY_MARKER", annotation = cleanMarker)
                             withStyle(SpanStyle(color = Color.Blue, fontWeight = FontWeight.Bold, baselineShift = BaselineShift(0.2f), fontSize = 12.sp)) {
                                 appendText(decodeCircledLetters(markerContent))
                             }
@@ -140,7 +140,6 @@ fun parseBibleText(text: String): AnnotatedString {
                         fMarkerStart = this.length
                     }
                     "</f>" -> {
-                        // Orphan </f> without <f> — ignore
                     }
                 }
             }
@@ -162,13 +161,10 @@ fun parseBibleText(text: String): AnnotatedString {
 
 private fun Char.isPunctuation(): Boolean = this in ",.;:!?"
 
-// Simplified note removal
 private fun String.removeNotes() = replace(Regex("<n>.*?</n>\\s*"), "")
 
-// Remove <w>...</w> tags and their content
 private fun String.removeWTags() = replace(Regex("<w>[^<]*</w>"), "")
 
-// Convert circled Unicode letters (ⓐ-ⓩ U+24D0..U+24E9) to regular lowercase letters for display
 private fun decodeCircledLetters(text: String): String {
     return buildString {
         for (ch in text) {

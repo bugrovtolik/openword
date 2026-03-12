@@ -10,7 +10,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         AndroidContext.applicationContext = applicationContext
-
         setContent {
             App()
         }

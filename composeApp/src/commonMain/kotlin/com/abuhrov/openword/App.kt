@@ -36,35 +36,31 @@ fun App() {
     AppTheme(fontSizeScale = fontSizeScale, currentFont = currentFont) {
         val clipboardManager = LocalClipboardManager.current
 
-        // Init State from Settings
         val savedTranslationId = Settings.getString(Constants.SettingsKeys.LAST_TRANSLATION, availableTranslations.first().id)
         val savedBookId = Settings.getLong(Constants.SettingsKeys.LAST_BOOK, Constants.DEFAULT_BOOK_ID)
         val savedChapter = Settings.getLong(Constants.SettingsKeys.LAST_CHAPTER, Constants.DEFAULT_CHAPTER)
         val savedVerse = Settings.getLong(Constants.SettingsKeys.LAST_VERSE, Constants.DEFAULT_VERSE)
 
-        // App State
         var bible by remember { mutableStateOf<Bible?>(null) }
         var isLoading by remember { mutableStateOf(true) }
         var loadError by remember { mutableStateOf<String?>(null) }
         var isInitialLoad by remember { mutableStateOf(true) }
 
-        // Selection State
         var selectedTranslation by remember { mutableStateOf(availableTranslations.find { it.id == savedTranslationId } ?: availableTranslations.first()) }
         var selectedBook by remember { mutableStateOf<Book?>(null) }
         var selectedChapter by remember { mutableStateOf(savedChapter) }
         var selectedVerse by remember { mutableStateOf(savedVerse) }
 
-        // Multi-verse selection state (lifted from BibleReaderScreen)
         var selectedVerses by remember { mutableStateOf(setOf<Verse>()) }
 
-        // Data State
         var currentVerses by remember { mutableStateOf<List<Verse>>(emptyList()) }
 
-        // Popup States
         var showVocabularyForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentVocabularyList by remember { mutableStateOf<List<LexiconEntry>>(emptyList()) }
         var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
+        var showCrossReferencesForVerse by remember { mutableStateOf<Verse?>(null) }
+        var currentCrossReferenceList by remember { mutableStateOf<List<CrossReferenceUiItem>>(emptyList()) }
         var showAIPopupForVerses by remember { mutableStateOf<List<Verse>?>(null) }
         var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
         var pendingStrongCode by remember { mutableStateOf<String?>(null) }
@@ -76,10 +72,8 @@ fun App() {
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
 
-        // Helper to clear verse selection
         val clearSelection = { selectedVerses = emptySet() }
 
-        // --- NAVIGATION HELPERS ---
         val onNextChapter: () -> Unit = {
             if (bible != null && selectedBook != null) {
                 if (selectedChapter < selectedBook!!.chapterCount) {
@@ -119,7 +113,6 @@ fun App() {
             }
         }
 
-        // --- PERSISTENCE EFFECT ---
         LaunchedEffect(selectedTranslation, selectedBook, selectedChapter, selectedVerse) {
             if (!isLoading && selectedBook != null) {
                 Settings.setString(Constants.SettingsKeys.LAST_TRANSLATION, selectedTranslation.id)
@@ -131,14 +124,13 @@ fun App() {
             }
         }
 
-        // --- APP STARTUP ---
         LaunchedEffect(Unit) {
             launch(Dispatchers.Default) { VocabularyRepository.initialize() }
             launch(Dispatchers.Default) { CommentaryRepository.initialize() }
             launch(Dispatchers.Default) { DictionaryRepository.initialize() }
+            launch(Dispatchers.Default) { CrossReferenceRepository.initialize() }
         }
 
-        // 1. Load Bible Metadata
         LaunchedEffect(selectedTranslation) {
             isLoading = true
             loadError = null
@@ -152,25 +144,47 @@ fun App() {
                     isInitialLoad = false
                 } else {
                     val currentBookId = selectedBook?.id
-                    val newBookInstance = if (currentBookId != null) loadedBible.books.find { it.id == currentBookId } else null
-                    if (newBookInstance != null) selectedBook = newBookInstance
-                    else { selectedBook = loadedBible.books.firstOrNull(); selectedChapter = 1L; selectedVerse = 1L }
+                    val newBookInstance = loadedBible.books.find { it.id == currentBookId }
+                    if (newBookInstance != null) {
+                        selectedBook = newBookInstance
+                    } else {
+                        selectedBook = loadedBible.books.firstOrNull()
+                        selectedChapter = 1L
+                        selectedVerse = 1L
+                    }
                 }
-            } catch (e: Exception) { loadError = e.message; bible = null } finally { isLoading = false }
+            } catch (e: Exception) {
+                loadError = e.message
+                bible = null
+            } finally {
+                isLoading = false
+            }
         }
 
-        // 2. Load Verses
         LaunchedEffect(bible, selectedBook, selectedChapter) {
             if (bible != null && selectedBook != null) {
                 val verses = withContext(Dispatchers.Default) { bible!!.getVerses(selectedBook!!.id, selectedChapter) }
                 currentVerses = verses
-                if (selectedVerse > 1 && verses.size >= selectedVerse && listState.firstVisibleItemIndex == 0) {
-                    scope.launch { listState.scrollToItem(selectedVerse.toInt()) }
-                }
             } else { currentVerses = emptyList() }
         }
 
-        // 3. Load Vocabulary
+        LaunchedEffect(currentVerses, selectedVerse) {
+            if (currentVerses.isNotEmpty()) {
+                if (selectedVerse <= 1L) {
+                    listState.scrollToItem(0)
+                } else {
+                    val indexInList = currentVerses.indexOfFirst { it.number == selectedVerse }
+                    val targetIndex = if (indexInList != -1) {
+                        indexInList + 1
+                    } else {
+                        val approx = currentVerses.indexOfFirst { it.number > selectedVerse }
+                        if (approx != -1 && approx > 0) approx else 1
+                    }
+                    listState.scrollToItem(targetIndex)
+                }
+            }
+        }
+
         LaunchedEffect(showVocabularyForVerse) {
             if (showVocabularyForVerse != null && selectedBook != null) {
                 try {
@@ -182,11 +196,48 @@ fun App() {
             } else { currentVocabularyList = emptyList(); selectedDefinition = null }
         }
 
-        // 4. Load Commentaries
         LaunchedEffect(showCommentariesForVerse) {
             currentCommentariesList = if (showCommentariesForVerse != null && selectedBook != null) {
                 try {
                     withContext(Dispatchers.Default) { getCommentariesForVerse(showCommentariesForVerse!!) }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else emptyList()
+        }
+
+        LaunchedEffect(showCrossReferencesForVerse) {
+            currentCrossReferenceList = if (showCrossReferencesForVerse != null && bible != null) {
+                try {
+                    val rawRefs = withContext(Dispatchers.Default) {
+                        CrossReferenceRepository.getCrossReferences(
+                            book = selectedBook!!.id,
+                            chapter = selectedChapter,
+                            verse = showCrossReferencesForVerse!!.number
+                        )
+                    }
+                    val uiItems = rawRefs.mapNotNull { ref ->
+                        val targetBook = bible!!.books.find { it.id == ref.bookTo }
+                        if (targetBook != null) {
+                            val chunkVerses = withContext(Dispatchers.Default) {
+                                bible!!.getVerses(targetBook.id, ref.chapterTo)
+                            }
+                            // Form single string for reference text
+                            val startIdx = (ref.verseToStart - 1).toInt().coerceAtLeast(0)
+                            val endIdx = ((ref.verseToEnd ?: ref.verseToStart) - 1).toInt().coerceAtMost(chunkVerses.lastIndex).coerceAtLeast(startIdx)
+                            
+                            if (startIdx <= endIdx && chunkVerses.isNotEmpty()) {
+                                val textBuilder = StringBuilder()
+                                for (i in startIdx..endIdx) {
+                                    if (i < chunkVerses.size) {
+                                        textBuilder.append(chunkVerses[i].text).append(" ")
+                                    }
+                                }
+                                CrossReferenceUiItem(reference = ref, book = targetBook, verseText = textBuilder.toString().trim())
+                            } else null
+                        } else null
+                    }
+                    uiItems
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -222,6 +273,12 @@ fun App() {
                     onShowVocabulary = {
                         if (selectedVerses.size == 1) {
                             showVocabularyForVerse = selectedVerses.first()
+                            clearSelection()
+                        }
+                    },
+                    onShowCrossReferences = {
+                        if (selectedVerses.size == 1) {
+                            showCrossReferencesForVerse = selectedVerses.first()
                             clearSelection()
                         }
                     },
@@ -261,19 +318,12 @@ fun App() {
                     }
                 },
                 onVerseTapped = { verse ->
-                    if (verse in selectedVerses) {
-                        // Tapping a selected verse deselects it
-                        selectedVerses = selectedVerses - verse
-                    } else {
-                        // Tapping an unselected verse adds it
-                        selectedVerses = selectedVerses + verse
-                    }
+                    selectedVerses = if (verse in selectedVerses) selectedVerses - verse else selectedVerses + verse
                 },
                 onDoubleTapStrong = { verse, code -> clearSelection(); pendingStrongCode = code; showVocabularyForVerse = verse }
             )
         }
 
-        // --- DIALOGS ---
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
                 selectedBookName = selectedBook?.shortName, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
@@ -286,6 +336,26 @@ fun App() {
             CommentariesPopup(
                 bookName = selectedBook?.shortName, chapter = selectedChapter, verse = showCommentariesForVerse!!.number,
                 commentaries = currentCommentariesList, autoTranslateEnabled = autoTranslate, onDismiss = { showCommentariesForVerse = null }
+            )
+        }
+
+        if (showCrossReferencesForVerse != null) {
+            CrossReferencesPopup(
+                bookName = selectedBook?.shortName,
+                chapter = selectedChapter,
+                verse = showCrossReferencesForVerse!!.number,
+                crossReferences = currentCrossReferenceList,
+                onReferenceClick = { targetBookId, targetChapter, targetVerse ->
+                    val newBook = bible?.books?.find { it.id == targetBookId }
+                    if (newBook != null) {
+                        selectedBook = newBook
+                        selectedChapter = targetChapter
+                        selectedVerse = targetVerse
+                        showCrossReferencesForVerse = null
+                        clearSelection()
+                    }
+                },
+                onDismiss = { showCrossReferencesForVerse = null }
             )
         }
 

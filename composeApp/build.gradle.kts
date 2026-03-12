@@ -101,6 +101,11 @@ sqldelight {
             generateAsync = true
             srcDirs.setFrom("src/commonMain/sqldelight/dictionaryDb")
         }
+        register("CrossReferenceDb") {
+            packageName = "com.abuhrov.openword.db"
+            generateAsync = true
+            srcDirs.setFrom("src/commonMain/sqldelight/crossReferenceDb")
+        }
     }
 }
 
