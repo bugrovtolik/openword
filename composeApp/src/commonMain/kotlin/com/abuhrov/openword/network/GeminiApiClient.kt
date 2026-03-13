@@ -25,13 +25,71 @@ object GeminiApiClient {
             })
         }
     }
+    
+    // 24 hours in milliseconds
+    private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 
+    /**
+     * Single-shot AI request — no chat history.
+     * Used by Vocabulary and Commentaries features.
+     */
+    suspend fun generateSingleResponse(prompt: String): String {
+        val cacheKey = "gemini_cache_" + prompt.hashCode().toUInt().toString()
+        val timestampKey = "${cacheKey}_timestamp"
+
+        val cachedResponse = Settings.getString(cacheKey, "")
+        val cachedTimestampMs = Settings.getLong(timestampKey, 0L)
+        val currentTimeMs = io.ktor.util.date.getTimeMillis()
+
+        if (cachedResponse.isNotBlank() && (currentTimeMs - cachedTimestampMs) < CACHE_TTL_MS) {
+            return cachedResponse
+        }
+
+        // Clean up stale cache entry
+        if (cachedResponse.isNotBlank()) {
+            Settings.remove(cacheKey)
+            Settings.remove(timestampKey)
+        }
+
+        return try {
+            val response: ProxyResponse = client.post(Constants.GEMINI_PROXY_URL) {
+                contentType(ContentType.Application.Json)
+                setBody(ProxyRequest(history = listOf(ChatMessage("user", prompt))))
+            }.body()
+
+            val result = response.text ?: "AI не відповідає"
+
+            if (response.text != null) {
+                Settings.setString(cacheKey, result)
+                Settings.setLong(timestampKey, currentTimeMs)
+            }
+
+            result
+        } catch (e: Exception) {
+            "Помилка: ${e.message}"
+        }
+    }
+
+    /**
+     * Multi-turn chat request — preserves full conversation history.
+     * Used only by AIPopup.
+     */
     suspend fun generateChatResponse(history: List<ChatMessage>): String {
         val cacheKey = "gemini_cache_" + history.hashCode().toUInt().toString()
+        val timestampKey = "${cacheKey}_timestamp"
+        
         val cachedResponse = Settings.getString(cacheKey, "")
+        val cachedTimestampMs = Settings.getLong(timestampKey, 0L)
+        val currentTimeMs = io.ktor.util.date.getTimeMillis()
 
-        if (cachedResponse.isNotBlank()) {
+        if (cachedResponse.isNotBlank() && (currentTimeMs - cachedTimestampMs) < CACHE_TTL_MS) {
             return cachedResponse
+        }
+
+        // Clean up stale cache entry
+        if (cachedResponse.isNotBlank()) {
+            Settings.remove(cacheKey)
+            Settings.remove(timestampKey)
         }
 
         return try {
@@ -44,6 +102,7 @@ object GeminiApiClient {
 
             if (response.text != null) {
                 Settings.setString(cacheKey, result)
+                Settings.setLong(timestampKey, currentTimeMs)
             }
 
             result

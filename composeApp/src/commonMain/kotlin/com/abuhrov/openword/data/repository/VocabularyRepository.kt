@@ -6,6 +6,8 @@ import com.abuhrov.openword.data.platform.ioDispatcher
 import com.abuhrov.openword.db.DatabaseDriverFactory
 import com.abuhrov.openword.db.LexiconDb
 import com.abuhrov.openword.model.LexiconEntry
+import com.abuhrov.openword.model.VerseLexiconPayload
+import com.abuhrov.openword.model.WordTagMapping
 import com.abuhrov.openword.util.Constants
 import com.abuhrov.openword.util.normalizeStrongCode
 import kotlinx.coroutines.withContext
@@ -56,6 +58,21 @@ object VocabularyRepository {
             }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun getVerseLexiconPayload(bookId: Long, chapter: Long, verse: Long, verseText: String): VerseLexiconPayload? = withContext(ioDispatcher) {
+        val db = ensureInitialized() ?: return@withContext null
+        try {
+            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
+            if (rawEntries.isEmpty()) return@withContext null
+            
+            val sourceList = rawEntries.map { 
+                WordTagMapping(heb = it.original_word, tags = it.strong_code)
+            }
+            VerseLexiconPayload(verse = verseText, source = sourceList)
+        } catch (_: Exception) {
+            null
         }
     }
 

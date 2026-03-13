@@ -32,6 +32,7 @@ fun App() {
     var fontSizeScale by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.FONT_SCALE, Constants.DEFAULT_FONT_SCALE).toFloat()) }
     var autoTranslate by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.AUTO_TRANSLATE, Constants.DEFAULT_AUTO_TRANSLATE).toBoolean()) }
     var navViewMode by remember { mutableStateOf(NavigationViewMode.valueOf(Settings.getString(Constants.SettingsKeys.NAV_VIEW_MODE, Constants.DEFAULT_NAV_VIEW_MODE))) }
+    var searchStrictness by remember { mutableStateOf(SearchStrictness.valueOf(Settings.getString(Constants.SettingsKeys.SEARCH_STRICTNESS, Constants.DEFAULT_SEARCH_STRICTNESS))) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
     val currentFont = loadAppFont()
@@ -60,6 +61,7 @@ fun App() {
 
         var showVocabularyForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentVocabularyList by remember { mutableStateOf<List<LexiconEntry>>(emptyList()) }
+        var currentVerseLexiconPayload by remember { mutableStateOf<VerseLexiconPayload?>(null) }
         var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
         var showCrossReferencesForVerse by remember { mutableStateOf<Verse?>(null) }
@@ -196,11 +198,13 @@ fun App() {
             if (showVocabularyForVerse != null && selectedBook != null) {
                 try {
                     val vocab = withContext(Dispatchers.Default) { getVocabularyForVerse(showVocabularyForVerse!!) }
+                    val payload = withContext(Dispatchers.Default) { getVerseLexiconPayload(showVocabularyForVerse!!) }
                     currentVocabularyList = vocab
+                    currentVerseLexiconPayload = payload
                     if (pendingStrongCode != null) { selectedDefinition = vocab.find { it.strongCode.contains(pendingStrongCode!!) }; pendingStrongCode = null }
                     else selectedDefinition = null
-                } catch (_: Exception) { currentVocabularyList = emptyList() }
-            } else { currentVocabularyList = emptyList(); selectedDefinition = null }
+                } catch (_: Exception) { currentVocabularyList = emptyList(); currentVerseLexiconPayload = null }
+            } else { currentVocabularyList = emptyList(); currentVerseLexiconPayload = null; selectedDefinition = null }
         }
 
         LaunchedEffect(showCommentariesForVerse) {
@@ -337,7 +341,7 @@ fun App() {
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
                 selectedBookName = selectedBook?.shortName, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
-                vocabularyList = currentVocabularyList, selectedDefinition = selectedDefinition, autoTranslateEnabled = autoTranslate,
+                vocabularyList = currentVocabularyList, verseLexiconPayload = currentVerseLexiconPayload, selectedDefinition = selectedDefinition, autoTranslateEnabled = autoTranslate,
                 onSelectDefinition = { selectedDefinition = it }, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
             )
         }
@@ -404,10 +408,11 @@ fun App() {
 
         if (showSettingsDialog) {
             SettingsDialog(
-                currentFontSizeScale = fontSizeScale, currentAutoTranslate = autoTranslate, currentNavViewMode = navViewMode,
+                currentFontSizeScale = fontSizeScale, currentAutoTranslate = autoTranslate, currentNavViewMode = navViewMode, currentSearchStrictness = searchStrictness,
                 onFontSizeChange = { fontSizeScale = it; Settings.setString(Constants.SettingsKeys.FONT_SCALE, it.toString()) },
                 onAutoTranslateChange = { autoTranslate = it; Settings.setString(Constants.SettingsKeys.AUTO_TRANSLATE, it.toString()) },
                 onNavViewModeChange = { navViewMode = it; Settings.setString(Constants.SettingsKeys.NAV_VIEW_MODE, it.name) },
+                onSearchStrictnessChange = { searchStrictness = it; Settings.setString(Constants.SettingsKeys.SEARCH_STRICTNESS, it.name) },
                 onReloadAllData = {
                     scope.launch {
                         isLoading = true; clearAllLocalData(); try { bible = loadBibleData(selectedTranslation) } catch (_: Exception) {}
@@ -421,7 +426,7 @@ fun App() {
         if (showSearchDialog) {
             SearchDialog(
                 query = currentSearchQuery,
-                onSearch = { q -> SearchIndexer.search(q) },
+                onSearch = { q -> SearchIndexer.search(q, searchStrictness.maxDistance, searchStrictness.allowPrefix) },
                 onResultClick = { targetBookId, targetChapter, targetVerse ->
                     val newBook = bible?.books?.find { it.id == targetBookId }
                     if (newBook != null) {

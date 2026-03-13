@@ -27,6 +27,7 @@ object Constants {
         const val LAST_CHAPTER = "last_chapter"
         const val LAST_VERSE = "last_verse"
         const val NAV_VIEW_MODE = "nav_view_mode"
+        const val SEARCH_STRICTNESS = "search_strictness"
     }
 
     // --- Settings Defaults ---
@@ -36,4 +37,5 @@ object Constants {
     const val DEFAULT_CHAPTER = 1L
     const val DEFAULT_VERSE = 1L
     const val DEFAULT_NAV_VIEW_MODE = "LIST"
+    const val DEFAULT_SEARCH_STRICTNESS = "STRICT"
 }

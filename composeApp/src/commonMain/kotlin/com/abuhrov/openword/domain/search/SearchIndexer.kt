@@ -78,7 +78,7 @@ object SearchIndexer {
         }
     }
 
-    suspend fun search(query: String, maxDistance: Int = 1): List<SearchResult> {
+    suspend fun search(query: String, maxDistance: Int, allowPrefix: Boolean): List<SearchResult> {
         if (query.length < 3) return emptyList()
 
         val indexSnapshot = mutex.withLock { 
@@ -101,7 +101,7 @@ object SearchIndexer {
 
                 for ((vocabWord, verseIds) in indexSnapshot) {
                     // Fast exact match or prefix
-                    if (vocabWord == term || vocabWord.startsWith(term)) {
+                    if (vocabWord == term || (allowPrefix && vocabWord.startsWith(term))) {
                         matchesForTerm.addAll(verseIds.toTypedArray())
                         matchingVocab.add(vocabWord)
                     } else if (term.length > 3 && vocabWord.length > 3) {

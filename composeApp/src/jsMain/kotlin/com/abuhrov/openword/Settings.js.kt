@@ -15,4 +15,7 @@ actual object Settings {
     actual fun setLong(key: String, value: Long) {
         localStorage.setItem(key, value.toString())
     }
+    actual fun remove(key: String) {
+        localStorage.removeItem(key)
+    }
 }

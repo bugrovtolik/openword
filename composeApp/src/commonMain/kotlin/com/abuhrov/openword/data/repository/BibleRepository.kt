@@ -11,6 +11,8 @@ import com.abuhrov.openword.model.CommentarySource
 import com.abuhrov.openword.model.LexiconEntry
 import com.abuhrov.openword.model.Translation
 import com.abuhrov.openword.model.Verse
+import com.abuhrov.openword.model.VerseLexiconPayload
+import com.abuhrov.openword.util.stripTags
 import kotlinx.coroutines.withContext
 
 class Bible(
@@ -56,6 +58,11 @@ suspend fun loadBibleData(translation: Translation): Bible = withContext(ioDispa
 
 suspend fun getVocabularyForVerse(verse: Verse): List<LexiconEntry> = withContext(ioDispatcher) {
     VocabularyRepository.getVocabulary(verse.bookId, verse.chapter, verse.number)
+}
+
+suspend fun getVerseLexiconPayload(verse: Verse): VerseLexiconPayload? = withContext(ioDispatcher) {
+    val cleanText = stripTags(verse.text).trim()
+    VocabularyRepository.getVerseLexiconPayload(verse.bookId, verse.chapter, verse.number, cleanText)
 }
 
 suspend fun getCommentariesForVerse(verse: Verse): List<CommentaryItem> = withContext(ioDispatcher) {

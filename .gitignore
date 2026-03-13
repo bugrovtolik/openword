@@ -10,3 +10,5 @@ local.properties
 /.kotlin/metadata/kotlinTransformedCInteropMetadataLibraries
 /.kotlin/metadata/kotlinTransformedMetadataLibraries
 /kotlin-js-store/yarn.lock
+/compile_error.log
+/compile_error_utf8.log

@@ -12,4 +12,5 @@ actual object Settings {
     actual fun setString(key: String, value: String) = prefs.edit().putString(key, value).apply()
     actual fun getLong(key: String, defaultValue: Long): Long = prefs.getLong(key, defaultValue)
     actual fun setLong(key: String, value: Long) = prefs.edit().putLong(key, value).apply()
+    actual fun remove(key: String) = prefs.edit().remove(key).apply()
 }

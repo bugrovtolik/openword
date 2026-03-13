@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.abuhrov.openword.model.ChatMessage
+
 import com.abuhrov.openword.model.CommentaryItem
 import com.abuhrov.openword.network.GeminiApiClient
 import com.abuhrov.openword.util.parseCommentaryText
@@ -52,7 +52,7 @@ fun CommentariesPopup(
                     val ukrainian = commentaries.find { it.sourceName != "Далласька богословська семінарія" }
                     val jsonList = json.encodeToString(commentaries.filter { it != ukrainian })
                     val prompt = "Translate the 'text' field to Ukrainian. Keep JSON structure. JSON: $jsonList"
-                    val response = GeminiApiClient.generateChatResponse(listOf(ChatMessage("user", prompt)))
+                    val response = GeminiApiClient.generateSingleResponse(prompt)
                     val cleanJson = stripJsonMarkdown(response)
                     val result = json.decodeFromString<List<CommentaryItem>>(cleanJson)
                     withContext(Dispatchers.Main) {

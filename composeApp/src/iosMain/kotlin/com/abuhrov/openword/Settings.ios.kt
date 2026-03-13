@@ -17,4 +17,7 @@ actual object Settings {
     actual fun setLong(key: String, value: Long) {
         NSUserDefaults.standardUserDefaults.setInteger(value, forKey = key)
     }
+    actual fun remove(key: String) {
+        NSUserDefaults.standardUserDefaults.removeObjectForKey(key)
+    }
 }

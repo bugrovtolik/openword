@@ -10,3 +10,21 @@ data class LexiconEntry(
     val transliteration: String?,
     val definition: String?
 )
+
+@Serializable
+data class WordTagMapping(
+    val heb: String,
+    val tags: String
+)
+
+@Serializable
+data class VerseLexiconPayload(
+    val verse: String,
+    val source: List<WordTagMapping>
+)
+
+@Serializable
+data class AILinkedWord(
+    val word: String,
+    val tags: String
+)

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.model.NavigationViewMode
+import com.abuhrov.openword.model.SearchStrictness
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,9 +25,11 @@ fun SettingsDialog(
     currentFontSizeScale: Float,
     currentAutoTranslate: Boolean,
     currentNavViewMode: NavigationViewMode,
+    currentSearchStrictness: SearchStrictness,
     onFontSizeChange: (Float) -> Unit,
     onAutoTranslateChange: (Boolean) -> Unit,
     onNavViewModeChange: (NavigationViewMode) -> Unit,
+    onSearchStrictnessChange: (SearchStrictness) -> Unit,
     onReloadAllData: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -98,6 +101,26 @@ fun SettingsDialog(
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                     ) {
                         Text("Сітка")
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
+                Text("Точність пошуку", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = currentSearchStrictness == SearchStrictness.LOOSE,
+                        onClick = { onSearchStrictnessChange(SearchStrictness.LOOSE) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) {
+                        Text("Вільний")
+                    }
+                    SegmentedButton(
+                        selected = currentSearchStrictness == SearchStrictness.STRICT,
+                        onClick = { onSearchStrictnessChange(SearchStrictness.STRICT) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) {
+                        Text("Точний")
                     }
                 }
                 Spacer(Modifier.height(24.dp))

@@ -5,4 +5,5 @@ expect object Settings {
     fun setString(key: String, value: String)
     fun getLong(key: String, defaultValue: Long): Long
     fun setLong(key: String, value: Long)
+    fun remove(key: String)
 }
