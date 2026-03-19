@@ -161,7 +161,7 @@ fun parseBibleText(text: String): AnnotatedString {
 
 private fun Char.isPunctuation(): Boolean = this in ",.;:!?"
 
-private fun String.removeNotes() = replace(Regex("<n>.*?</n>\\s*"), "")
+private fun String.removeNotes() = replace(Regex("<n>.*?</n>"), "")
 
 private fun String.removeWTags() = replace(Regex("<w>[^<]*</w>"), "")
 
@@ -179,9 +179,13 @@ private fun decodeCircledLetters(text: String): String {
 
 fun stripTags(text: String): String {
     val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ"
-    return Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(
-        text.removeNotes().removeWTags().replace(Regex("<f>.*?</f>\\s*"), ""), ""
+    // Remove tags and clean extra spaces at the same time
+    val stripped = Regex("(<[^>]+>)|(\\{[^}]+\\})|(\\[\\d+\\])").replace(
+        text.removeNotes().removeWTags().replace(Regex("<f>.*?</f>"), ""), ""
     ).replace(Regex("([$wordChars'-]+)\\*"), "$1")
+    
+    // Normalize spaces: multiple spaces become one
+    return stripped.replace(Regex("\\s+"), " ").trim()
 }
 
 fun normalizeStrongCode(code: String): String {

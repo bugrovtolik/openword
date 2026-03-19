@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
-import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.data.repository.CrossReferenceItem
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.util.stripTags

@@ -3,10 +3,7 @@ package com.abuhrov.openword
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -64,7 +61,7 @@ fun App() {
         var currentVerseLexiconPayload by remember { mutableStateOf<VerseLexiconPayload?>(null) }
         var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
-        var showCrossReferencesForVerse by remember { mutableStateOf<Verse?>(null) }
+        var showCrossReferencesForVerseNumber by remember { mutableStateOf<Long?>(null) }
         var currentCrossReferenceList by remember { mutableStateOf<List<CrossReferenceUiItem>>(emptyList()) }
         var showAIPopupForVerses by remember { mutableStateOf<List<Verse>?>(null) }
         var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
@@ -197,15 +194,29 @@ fun App() {
         LaunchedEffect(showVocabularyForVerse) {
             if (showVocabularyForVerse != null && selectedBook != null) {
                 try {
-                    val vocab = withContext(Dispatchers.Default) { getVocabularyForVerse(showVocabularyForVerse!!) }
-                    val payload = withContext(Dispatchers.Default) { getVerseLexiconPayload(showVocabularyForVerse!!) }
+                    val (vocab, payload) = withContext(Dispatchers.Default) { 
+                        getVocabularyAndPayloadForVerse(showVocabularyForVerse!!) 
+                    }
                     currentVocabularyList = vocab
                     currentVerseLexiconPayload = payload
-                    if (pendingStrongCode != null) { selectedDefinition = vocab.find { it.strongCode.contains(pendingStrongCode!!) }; pendingStrongCode = null }
-                    else selectedDefinition = null
-                } catch (_: Exception) { currentVocabularyList = emptyList(); currentVerseLexiconPayload = null }
-            } else { currentVocabularyList = emptyList(); currentVerseLexiconPayload = null; selectedDefinition = null }
+                    
+                    if (pendingStrongCode != null) { 
+                        selectedDefinition = currentVocabularyList.find { it.strongCode.contains(pendingStrongCode!!) }
+                        pendingStrongCode = null 
+                    } else {
+                        selectedDefinition = null
+                    }
+                } catch (_: Exception) { 
+                    currentVocabularyList = emptyList()
+                    currentVerseLexiconPayload = null 
+                }
+            } else { 
+                currentVocabularyList = emptyList()
+                currentVerseLexiconPayload = null
+                selectedDefinition = null 
+            }
         }
+
 
         LaunchedEffect(showCommentariesForVerse) {
             currentCommentariesList = if (showCommentariesForVerse != null && selectedBook != null) {
@@ -217,14 +228,14 @@ fun App() {
             } else emptyList()
         }
 
-        LaunchedEffect(showCrossReferencesForVerse) {
-            currentCrossReferenceList = if (showCrossReferencesForVerse != null && bible != null) {
+        LaunchedEffect(showCrossReferencesForVerseNumber) {
+            currentCrossReferenceList = if (showCrossReferencesForVerseNumber != null && bible != null) {
                 try {
                     val rawRefs = withContext(Dispatchers.Default) {
                         CrossReferenceRepository.getCrossReferences(
                             book = selectedBook!!.id,
                             chapter = selectedChapter,
-                            verse = showCrossReferencesForVerse!!.number
+                            verse = showCrossReferencesForVerseNumber!!
                         )
                     }
                     val uiItems = rawRefs.mapNotNull { ref ->
@@ -291,7 +302,7 @@ fun App() {
                     },
                     onShowCrossReferences = {
                         if (selectedVerses.size == 1) {
-                            showCrossReferencesForVerse = selectedVerses.first()
+                            showCrossReferencesForVerseNumber = selectedVerses.first().number
                             clearSelection()
                         }
                     },
@@ -353,11 +364,11 @@ fun App() {
             )
         }
 
-        if (showCrossReferencesForVerse != null) {
+        if (showCrossReferencesForVerseNumber != null) {
             CrossReferencesPopup(
                 bookName = selectedBook?.shortName,
                 chapter = selectedChapter,
-                verse = showCrossReferencesForVerse!!.number,
+                verse = showCrossReferencesForVerseNumber!!,
                 crossReferences = currentCrossReferenceList,
                 onReferenceClick = { targetBookId, targetChapter, targetVerse ->
                     val newBook = bible?.books?.find { it.id == targetBookId }
@@ -365,11 +376,11 @@ fun App() {
                         selectedBook = newBook
                         selectedChapter = targetChapter
                         selectedVerse = targetVerse
-                        showCrossReferencesForVerse = null
+                        showCrossReferencesForVerseNumber = null
                         clearSelection()
                     }
                 },
-                onDismiss = { showCrossReferencesForVerse = null }
+                onDismiss = { showCrossReferencesForVerseNumber = null }
             )
         }
 

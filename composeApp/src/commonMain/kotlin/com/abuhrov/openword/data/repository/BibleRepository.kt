@@ -65,6 +65,12 @@ suspend fun getVerseLexiconPayload(verse: Verse): VerseLexiconPayload? = withCon
     VocabularyRepository.getVerseLexiconPayload(verse.bookId, verse.chapter, verse.number, cleanText)
 }
 
+suspend fun getVocabularyAndPayloadForVerse(verse: Verse): Pair<List<LexiconEntry>, VerseLexiconPayload?> = withContext(ioDispatcher) {
+    val cleanText = stripTags(verse.text).trim()
+    VocabularyRepository.getVocabularyAndPayload(verse.bookId, verse.chapter, verse.number, cleanText)
+}
+
+
 suspend fun getCommentariesForVerse(verse: Verse): List<CommentaryItem> = withContext(ioDispatcher) {
     CommentaryRepository.getCommentaries(verse)
 }

@@ -2,32 +2,20 @@ package com.abuhrov.openword.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Assistant
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CompareArrows
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.model.Translation
@@ -92,7 +80,7 @@ fun BibleTopBar(
                     }
                     IconButton(onClick = onShowCrossReferences, enabled = isSingleSelection) {
                         Icon(
-                            Icons.Default.CompareArrows, "Перехресні посилання",
+                            Icons.AutoMirrored.Filled.CompareArrows, "Перехресні посилання",
                             tint = if (isSingleSelection) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
                         )

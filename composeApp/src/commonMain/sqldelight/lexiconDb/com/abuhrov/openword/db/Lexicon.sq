@@ -27,3 +27,7 @@ WHERE book_id = ? AND chapter_id = ? AND verse_id = ?;
 
 getLexiconDefinition:
 SELECT * FROM lexicon WHERE strong_code = ?;
+
+getLexiconBatch:
+SELECT * FROM lexicon WHERE strong_code IN ?;
+

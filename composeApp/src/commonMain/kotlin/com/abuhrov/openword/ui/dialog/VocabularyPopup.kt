@@ -44,11 +44,13 @@ fun VocabularyPopup(
     onSelectDefinition: (LexiconEntry?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var translatedVocabulary by remember { mutableStateOf<List<LexiconEntry>?>(null) }
-    var isTranslating by remember { mutableStateOf(false) }
+    var translatedVocabulary by remember(vocabularyList) { mutableStateOf<List<LexiconEntry>?>(null) }
+    var isTranslating by remember(vocabularyList) { mutableStateOf(false) }
 
-    var aiLinkedWords by remember { mutableStateOf<List<AILinkedWord>?>(null) }
-    var isLinking by remember { mutableStateOf(false) }
+
+    var aiLinkedWords by remember(verseLexiconPayload) { mutableStateOf<List<AILinkedWord>?>(null) }
+    var isLinking by remember(verseLexiconPayload) { mutableStateOf(verseLexiconPayload != null && aiLinkedWords == null) }
+
     
     var clickedLinkedWord by remember { mutableStateOf<AILinkedWord?>(null) }
     val scope = rememberCoroutineScope()
@@ -57,9 +59,12 @@ fun VocabularyPopup(
     LaunchedEffect(verseLexiconPayload) {
         if (verseLexiconPayload != null && aiLinkedWords == null) {
             isLinking = true
-            scope.launch(Dispatchers.Default) {
-                try {
-                    val prompt = """
+            try {
+// Strip accents for AI mapping to avoid fragmentation (the AI prefers clean text)
+                val cleanedVerse = verseLexiconPayload.verse.replace("\u0301", "").replace("\u0300", "").replace("́", "")
+                val cleanedPayload = verseLexiconPayload.copy(verse = cleanedVerse)
+                
+                val prompt = """
 Task: Map words from a verse to their exact Hebrew/Greek Strong's tags.
 Input: A JSON object containing 'verse' and 'source' (an array mapping source text 'heb' to Strong's 'tags').
 Notation Rules:
@@ -70,15 +75,18 @@ Output Requirement:
 Return ONLY a JSON array of objects linking each word to its Strong's tag.
 Omit any source element that does not map directly to a word (ignore unmapped words).
 Format: [{"word": "На", "tags": "H9003"}, {"word": "початку", "tags": "H7225G"}]
-Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), verseLexiconPayload)}
-                    """.trimIndent()
-                    val response = GeminiApiClient.generateSingleResponse(prompt)
-                    val cleanJson = stripJsonMarkdown(response)
-                    val result = json.decodeFromString<List<AILinkedWord>>(cleanJson)
-                    withContext(Dispatchers.Main) { aiLinkedWords = result; isLinking = false }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { isLinking = false }
+Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPayload)}
+                """.trimIndent()
+                val response = withContext(Dispatchers.Default) { 
+                    GeminiApiClient.generateSingleResponse(prompt) 
                 }
+                val cleanJson = stripJsonMarkdown(response)
+                val result = json.decodeFromString<List<AILinkedWord>>(cleanJson)
+                aiLinkedWords = result
+            } catch (e: Exception) {
+                // Keep aiLinkedWords null on failure
+            } finally {
+                isLinking = false
             }
         }
     }
@@ -87,17 +95,19 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), verseLexicon
     LaunchedEffect(vocabularyList) {
         if (vocabularyList.isNotEmpty() && translatedVocabulary == null) {
             isTranslating = true
-            scope.launch(Dispatchers.Default) {
-                try {
-                    val jsonList = json.encodeToString(vocabularyList)
-                    val prompt = "Translate 'gloss' and 'definition' to Ukrainian. Keep JSON structure. JSON: $jsonList"
-                    val response = GeminiApiClient.generateSingleResponse(prompt)
-                    val cleanJson = stripJsonMarkdown(response)
-                    val result = json.decodeFromString<List<LexiconEntry>>(cleanJson)
-                    withContext(Dispatchers.Main) { translatedVocabulary = result; isTranslating = false }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { isTranslating = false }
+            try {
+                val jsonList = json.encodeToString(vocabularyList)
+                val prompt = "Translate 'gloss' and 'definition' to Ukrainian. Keep JSON structure. JSON: $jsonList"
+                val response = withContext(Dispatchers.Default) { 
+                    GeminiApiClient.generateSingleResponse(prompt) 
                 }
+                val cleanJson = stripJsonMarkdown(response)
+                val result = json.decodeFromString<List<LexiconEntry>>(cleanJson)
+                translatedVocabulary = result
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                isTranslating = false
             }
         }
     }
@@ -114,40 +124,68 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), verseLexicon
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    if (isLinking) {
+                    if (verseLexiconPayload == null) {
+                        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(8.dp))
+                            Text("Завантаження даних вірша...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (isLinking) {
                         Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator()
                             Spacer(Modifier.height(8.dp))
                             Text("Прив'язка тексту AI...", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                    } else if (aiLinkedWords != null && verseLexiconPayload != null) {
-                        // Drawing FlowRow text blocks
-                        val words = verseLexiconPayload.verse.split(Regex("(?<=\\s)|(?=\\s)"))
+                    } else if (aiLinkedWords != null) {
+                        // Improved Tokenization: Split into Words (including accents), Spaces, and Punctuation
+                        val wordChars = "a-zA-Zа-яА-ЯіІїЇєЄґҐ\\u0300-\\u036f"
+                        val tokens = Regex("([$wordChars]+)|(\\s+)|([^$wordChars\\s]+)")
+                            .findAll(verseLexiconPayload.verse)
+                            .map { it.value }
+                            .toList()
                         
                         FlowRow(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Start,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            for (token in words) {
-                                if (token.isBlank()) continue
-                                val cleanToken = token.trim { !it.isLetterOrDigit() }
-                                val linked = aiLinkedWords?.find { it.word.equals(cleanToken, ignoreCase = true) }
+                            for (token in tokens) {
+                                if (token.isEmpty()) continue
                                 
-                                if (linked != null) {
+                                val isWord = token.any { it.isLetterOrDigit() }
+                                
+                                if (isWord) {
+                                    val cleanToken = normalizeForMatch(token)
+                                    val linked = aiLinkedWords?.find { normalizeForMatch(it.word) == cleanToken }
+                                    
+                                    // Everything that looks like a word gets a Box for visual consistency
                                     Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        color = if (linked != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                         shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.clickable { clickedLinkedWord = linked }
+                                        modifier = Modifier
+                                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                                            .clickable { if (linked != null) clickedLinkedWord = linked }
                                     ) {
-                                        Text(token.trim(), modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = token, 
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), 
+                                            style = MaterialTheme.typography.bodyLarge, 
+                                            color = if (linked != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = if (linked != null) FontWeight.Bold else FontWeight.Normal
+                                        )
                                     }
                                 } else {
-                                    Text(token.trim(), modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface)
+                                    // Just show space or punctuation naturally (NO trim)
+                                    Text(
+                                        text = token, 
+                                        style = MaterialTheme.typography.bodyLarge, 
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
                                 }
                             }
                         }
-                    } else if (!isLinking && aiLinkedWords == null) {
+                    } else {
                         Text("Не вдалося завантажити карту слів.", modifier = Modifier.align(Alignment.Center).padding(16.dp))
                     }
                 }
@@ -206,3 +244,13 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), verseLexicon
         }
     }
 }
+
+private fun normalizeForMatch(text: String): String {
+    // Basic normalization: lowercase and remove some common accents/combining characters
+    return text.lowercase()
+        .replace("\u0301", "") // Combining Acute Accent
+        .replace("\u0300", "") // Combining Grave Accent
+        .replace("́", "")      // Literal accent if any
+        .trim { !it.isLetterOrDigit() }
+}
+

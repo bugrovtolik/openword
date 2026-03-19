@@ -126,3 +126,37 @@ android {
         targetCompatibility = JavaVersion.VERSION_25
     }
 }
+
+tasks.register<Exec>("generateDevServiceWorker") {
+    dependsOn("jsBrowserDevelopmentWebpack")
+    workingDir(projectDir)
+    commandLine("node", "generate-sw.js", "build/kotlin-webpack/js/developmentExecutable")
+}
+
+tasks.register<Copy>("copyIndexHtml") {
+    from("src/jsMain/resources/index.html")
+    into("build/kotlin-webpack/js/developmentExecutable")
+    dependsOn("jsBrowserDevelopmentWebpack")
+    mustRunAfter("jsBrowserDevelopmentWebpack")
+}
+
+tasks.named("jsBrowserDevelopmentWebpack") {
+    finalizedBy("copyIndexHtml", "generateDevServiceWorker")
+}
+
+tasks.register<Exec>("generateProdServiceWorker") {
+    dependsOn("jsBrowserProductionWebpack")
+    workingDir(projectDir)
+    commandLine("node", "generate-sw.js", "build/dist/js/productionExecutable")
+}
+
+tasks.register<Copy>("copyIndexHtmlProd") {
+    from("src/jsMain/resources/index.html")
+    into("build/dist/js/productionExecutable")
+    dependsOn("jsBrowserDistribution")
+    mustRunAfter("jsBrowserDistribution")
+}
+
+tasks.named("jsBrowserDistribution") {
+    finalizedBy("copyIndexHtmlProd", "generateProdServiceWorker")
+}

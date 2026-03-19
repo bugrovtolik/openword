@@ -32,10 +32,10 @@ object Constants {
 
     // --- Settings Defaults ---
     const val DEFAULT_FONT_SCALE = "1.0"
-    const val DEFAULT_AUTO_TRANSLATE = "true"
+    const val DEFAULT_AUTO_TRANSLATE = "false"
     const val DEFAULT_BOOK_ID = 1L
     const val DEFAULT_CHAPTER = 1L
     const val DEFAULT_VERSE = 1L
-    const val DEFAULT_NAV_VIEW_MODE = "LIST"
+    const val DEFAULT_NAV_VIEW_MODE = "GRID"
     const val DEFAULT_SEARCH_STRICTNESS = "STRICT"
 }

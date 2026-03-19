@@ -14,7 +14,7 @@ import com.abuhrov.openword.model.LexiconEntry
 
 @Composable
 fun VocabularyDetailView(entry: LexiconEntry) {
-    Column(modifier = Modifier.padding(16.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
         Text(entry.originalWord, style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
         if (entry.transliteration != null) Text("Transliteration: ${entry.transliteration}", style = MaterialTheme.typography.bodyLarge, fontStyle = FontStyle.Italic)
