@@ -1,56 +1,78 @@
-const CACHE_NAME = 'openword-v5';
-
-const PRECACHE_URLS = [
-    './',
-    'index.html',
-    'composeApp.js',
-    'sql-wasm.wasm',
-    'manifest.json',
-    'favicon.ico',
-    'icons/icon-light-512.png',
-    'icons/icon-dark-512.png',
-    'icons/icon-192.png',
-    'icons/icon-512.png',
-    'icons/icon-mono.png'
+const CACHE_NAME = 'openword-1773886346442';
+const ASSETS = [
+  "/",
+  "/236.js",
+  "/bccfa839aa4b38489c76.wasm",
+  "/composeApp.js",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/CUV.commentaries.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/GRM.commentaries.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/IVP.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/NPU.commentaries.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/UBIO.commentaries.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/UMT.commentaries.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/constable.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/commentaries/dallas.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/crossreferences/GRM.crossreferences.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/CUV.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/GRM.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/HOM.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/KJV.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/MSC.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/NPU.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/NUP.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/UBIO.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/UKRK.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/translations/UMT.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/vocabulary/GRM.dictionary.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/files/vocabulary/lexicon.SQLite3",
+  "/composeResources/openword.composeapp.generated.resources/font/OpenSans.ttf",
+  "/favicon.ico",
+  "/icons/icon-192.png",
+  "/icons/icon-32.png",
+  "/icons/icon-512.png",
+  "/icons/icon-dark-512.png",
+  "/icons/icon-mono.png",
+  "/index.html",
+  "/js-reexport-symbols.mjs",
+  "/manifest.json",
+  "/skiko.mjs",
+  "/skiko.wasm",
+  "/skikod8.mjs",
+  "/sql-wasm.js",
+  "/sql-wasm.wasm",
+  "/sw.template.js"
 ];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            // We use individual fetches so one 404 doesn't kill the whole PWA installation
-            return Promise.allSettled(
-                PRECACHE_URLS.map(url =>
-                    fetch(url).then(res => {
-                        if (res.ok) return cache.put(url, res);
-                    }).catch(err => console.error('SW: Precache failed for', url, err))
-                )
-            );
-        }).then(() => self.skipWaiting())
+        caches.open(CACHE_NAME)
+            .then(cache => Promise.all(ASSETS.map(url => cache.add(url).catch(err => console.error(`Failed to cache ${url}:`, err)))))
+            .catch(err => console.error('Fatal error during installation:', err))
     );
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then(keys => Promise.all(
-            keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-        )).then(() => self.clients.claim())
+        Promise.all([
+            clients.claim(),
+            caches.keys().then(keys =>
+                Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
+            )
+        ])
     );
 });
 
 self.addEventListener('fetch', (event) => {
-    const url = event.request.url;
-
-    if (!url.startsWith('http')) return;
     if (event.request.method !== 'GET') return;
-
-    // Network-first: always try the server, fall back to cache for offline use
     event.respondWith(
-        fetch(event.request).then(response => {
-            if (response && response.status === 200 && response.type === 'basic') {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-            }
-            return response;
-        }).catch(() => caches.match(event.request))
+        caches.match(event.request)
+            .then(cached => cached || fetch(event.request))
+            .catch(() => caches.match(event.request))
     );
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data?.action === 'skipWaiting') {
+        self.skipWaiting();
+    }
 });
