@@ -1,7 +1,7 @@
 package com.abuhrov.openword.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
-import com.abuhrov.openword.db.Lexicon
+import com.abuhrov.openword.db.lexicon.Lexicon
 import com.abuhrov.openword.db.LexiconDb
 import com.abuhrov.openword.util.normalizeStrongCode
 

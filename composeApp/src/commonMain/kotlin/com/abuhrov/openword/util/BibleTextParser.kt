@@ -190,10 +190,9 @@ fun stripTags(text: String): String {
 
 fun normalizeStrongCode(code: String): String {
     if (code.isEmpty()) return code
-    val prefix = code[0]
+    val prefix = code[0].uppercaseChar()
     if (prefix != 'H' && prefix != 'G') return code
-    var digitEnd = 1
-    while (digitEnd < code.length && code[digitEnd].isDigit()) digitEnd++
-    if (digitEnd == 1) return code
-    return "$prefix${code.substring(1, digitEnd).padStart(4, '0')}${code.substring(digitEnd)}"
+    val digits = code.substring(1).takeWhile { it.isDigit() }
+    if (digits.isEmpty()) return code
+    return prefix + digits.padStart(4, '0')
 }

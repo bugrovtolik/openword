@@ -38,8 +38,8 @@ fun VocabularyListView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(entry.strongCode, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(60.dp))
-                    Text(entry.originalWord, style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(90.dp))
-                    Text(entry.gloss, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(entry.originalWord ?: "", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(90.dp))
+                    Text(entry.shortDefinition, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             }

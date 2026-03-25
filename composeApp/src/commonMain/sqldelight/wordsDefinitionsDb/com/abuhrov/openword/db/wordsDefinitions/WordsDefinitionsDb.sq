@@ -1,0 +1,38 @@
+CREATE TABLE IF NOT EXISTS lexicon (
+    topic            TEXT NOT NULL,
+    definition       TEXT,
+    lexeme           TEXT,
+    transliteration  TEXT,
+    pronunciation    TEXT,
+    short_definition TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS lexicon_topic ON lexicon (topic);
+
+
+CREATE TABLE IF NOT EXISTS cognate_strong_numbers (
+    group_id      INTEGER,
+    strong_number TEXT
+);
+
+CREATE INDEX IF NOT EXISTS cognate_strong_numbers_group ON cognate_strong_numbers (group_id);
+CREATE INDEX IF NOT EXISTS cognate_strong_numbers_number ON cognate_strong_numbers (strong_number);
+
+CREATE TABLE IF NOT EXISTS morphology_indications (
+    indication    TEXT NOT NULL,
+    applicable_to TEXT NOT NULL,
+    meaning       TEXT,
+    PRIMARY KEY (indication, applicable_to)
+);
+
+getLexiconDefinition:
+SELECT * FROM lexicon WHERE topic = ?;
+
+getLexiconBatch:
+SELECT * FROM lexicon WHERE topic IN ?;
+
+getCognateStrongNumbers:
+SELECT * FROM cognate_strong_numbers WHERE group_id = ?;
+
+getMorphologyIndication:
+SELECT * FROM morphology_indications WHERE indication = ? AND applicable_to = ?;

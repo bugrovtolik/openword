@@ -3,12 +3,16 @@ package com.abuhrov.openword
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.abuhrov.openword.data.config.availableTranslations
 import com.abuhrov.openword.data.local.clearAllLocalData
+import com.abuhrov.openword.data.platform.ioDispatcher
 import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
 import com.abuhrov.openword.domain.search.SearchIndexer
@@ -194,7 +198,7 @@ fun App() {
         LaunchedEffect(showVocabularyForVerse) {
             if (showVocabularyForVerse != null && selectedBook != null) {
                 try {
-                    val (vocab, payload) = withContext(Dispatchers.Default) { 
+                    val (vocab, payload) = withContext(ioDispatcher) {
                         getVocabularyAndPayloadForVerse(showVocabularyForVerse!!) 
                     }
                     currentVocabularyList = vocab
@@ -352,15 +356,15 @@ fun App() {
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
                 selectedBookName = selectedBook?.shortName, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
-                vocabularyList = currentVocabularyList, verseLexiconPayload = currentVerseLexiconPayload, selectedDefinition = selectedDefinition, autoTranslateEnabled = autoTranslate,
-                onSelectDefinition = { selectedDefinition = it }, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
+                vocabularyList = currentVocabularyList, verseLexiconPayload = currentVerseLexiconPayload, selectedDefinition = selectedDefinition,
+                bible = bible, onSelectDefinition = { selectedDefinition = it }, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
             )
         }
 
         if (showCommentariesForVerse != null) {
             CommentariesPopup(
                 bookName = selectedBook?.shortName, chapter = selectedChapter, verse = showCommentariesForVerse!!.number,
-                commentaries = currentCommentariesList, autoTranslateEnabled = autoTranslate, onDismiss = { showCommentariesForVerse = null }
+                commentaries = currentCommentariesList, bible = bible, onDismiss = { showCommentariesForVerse = null }
             )
         }
 

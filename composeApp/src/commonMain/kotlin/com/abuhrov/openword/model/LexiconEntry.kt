@@ -5,15 +5,16 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LexiconEntry(
     val strongCode: String,
-    val originalWord: String,
-    val gloss: String,
+    var shortDefinition: String,
+    var fullDefinition: String?,
     val transliteration: String?,
-    val definition: String?
+    val originalWord: String?,
+    val morphology: String?
 )
 
 @Serializable
 data class WordTagMapping(
-    val heb: String,
+    val orig: String,
     val tags: String
 )
 
@@ -26,5 +27,5 @@ data class VerseLexiconPayload(
 @Serializable
 data class AILinkedWord(
     val word: String,
-    val tags: String
+    var tags: String
 )

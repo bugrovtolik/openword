@@ -10,13 +10,15 @@ object Constants {
     val ROOT_WORD_PATTERN = Regex("\\{([^}]+)\\}")
 
     // --- Database ---
+    const val DICTIONARY_DB_NAME = "vocabulary/GRM.lexicon.SQLite3"
     const val LEXICON_DB_NAME = "vocabulary/lexicon.SQLite3"
-    const val DICTIONARY_DB_NAME = "vocabulary/GRM.dictionary.SQLite3"
+    const val WORDS_DEFINITIONS_DB_NAME = "vocabulary/wordsDefinitions.SQLite3"
     const val CROSS_REFERENCE_DB_NAME = "crossreferences/GRM.crossreferences.SQLite3"
     const val DATABASE_PREPARE_TIMEOUT_MS = 15_000L
 
     // --- Network ---
-    const val GEMINI_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev"
+    const val GEMINI_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev/gemini"
+    const val DEEPL_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev/deepl"
 
     // --- Settings Keys ---
     object SettingsKeys {

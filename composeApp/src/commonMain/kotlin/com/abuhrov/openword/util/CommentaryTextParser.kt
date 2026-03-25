@@ -1,6 +1,10 @@
 package com.abuhrov.openword.util
 
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 
 // --- Commentary Parsing ---
 
@@ -12,11 +16,39 @@ fun parseCommentaryText(text: String): AnnotatedString {
         return AnnotatedString(stripRtf(textWithoutNotes))
     }
 
-    val clean = textWithoutNotes
-        .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
-        .replace(Regex("<[^>]+>"), "")
+    val linkPattern = Regex("<a\\s+href='([^']+)'>([^<]+)</a>")
 
-    return AnnotatedString(clean.trim())
+    val withNewlines = textWithoutNotes
+        .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+
+    return buildAnnotatedString {
+        var lastIndex = 0
+
+        linkPattern.findAll(withNewlines).forEach { matchResult ->
+            val before = withNewlines.substring(lastIndex, matchResult.range.first)
+            append(before.replace(Regex("<[^>]+>"), ""))
+            
+            val url = matchResult.groupValues[1]
+            val linkText = matchResult.groupValues[2]
+
+            pushStringAnnotation(tag = "REFERENCE", annotation = url)
+            withStyle(
+                SpanStyle(
+                    color = androidx.compose.ui.graphics.Color(0xFF0D47A1),
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                )
+            ) {
+                append(linkText)
+            }
+            pop()
+
+            lastIndex = matchResult.range.last + 1
+        }
+
+        if (lastIndex < withNewlines.length) {
+            append(withNewlines.substring(lastIndex).replace(Regex("<[^>]+>"), ""))
+        }
+    }
 }
 
 fun stripRtf(rtf: String): String {

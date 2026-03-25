@@ -13,6 +13,7 @@ import kotlinx.coroutines.withTimeout
 
 suspend fun clearAllLocalData() = withContext(ioDispatcher) {
     deleteDatabaseFile(Constants.LEXICON_DB_NAME.substringAfterLast('/'))
+    deleteDatabaseFile(Constants.WORDS_DEFINITIONS_DB_NAME.substringAfterLast('/'))
     availableTranslations.forEach { deleteDatabaseFile(it.fileName.substringAfterLast('/')) }
     availableCommentaries.forEach { deleteDatabaseFile(it.fileName.substringAfterLast('/')) }
     CommentaryRepository.clearCache()

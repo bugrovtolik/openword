@@ -56,14 +56,6 @@ suspend fun loadBibleData(translation: Translation): Bible = withContext(ioDispa
     Bible(books, database)
 }
 
-suspend fun getVocabularyForVerse(verse: Verse): List<LexiconEntry> = withContext(ioDispatcher) {
-    VocabularyRepository.getVocabulary(verse.bookId, verse.chapter, verse.number)
-}
-
-suspend fun getVerseLexiconPayload(verse: Verse): VerseLexiconPayload? = withContext(ioDispatcher) {
-    val cleanText = stripTags(verse.text).trim()
-    VocabularyRepository.getVerseLexiconPayload(verse.bookId, verse.chapter, verse.number, cleanText)
-}
 
 suspend fun getVocabularyAndPayloadForVerse(verse: Verse): Pair<List<LexiconEntry>, VerseLexiconPayload?> = withContext(ioDispatcher) {
     val cleanText = stripTags(verse.text).trim()

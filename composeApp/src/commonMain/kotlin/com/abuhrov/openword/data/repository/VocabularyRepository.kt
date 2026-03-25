@@ -1,131 +1,160 @@
 package com.abuhrov.openword.data.repository
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.abuhrov.openword.data.local.prepareDatabaseFile
 import com.abuhrov.openword.data.platform.ioDispatcher
 import com.abuhrov.openword.db.DatabaseDriverFactory
 import com.abuhrov.openword.db.LexiconDb
+import com.abuhrov.openword.db.WordsDefinitionsDb
+import com.abuhrov.openword.db.lexicon.GetVocabularyForVerse
+import com.abuhrov.openword.db.lexicon.Lexicon
 import com.abuhrov.openword.model.LexiconEntry
 import com.abuhrov.openword.model.VerseLexiconPayload
 import com.abuhrov.openword.model.WordTagMapping
 import com.abuhrov.openword.util.Constants
 import com.abuhrov.openword.util.normalizeStrongCode
 import kotlinx.coroutines.withContext
+import kotlin.collections.forEach
 
 object VocabularyRepository {
-    private var database: LexiconDb? = null
+    private var lexiconDb: LexiconDb? = null
+    private var wordsDefinitionsDb: WordsDefinitionsDb? = null
 
     suspend fun initialize() = withContext(ioDispatcher) {
         ensureInitialized()
     }
 
-    suspend fun getVocabulary(bookId: Long, chapter: Long, verse: Long): List<LexiconEntry> = withContext(ioDispatcher) {
-        val db = ensureInitialized() ?: return@withContext emptyList()
-        try {
-            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
-            if (rawEntries.isEmpty()) return@withContext emptyList()
-            enrichVocabulary(db, rawEntries)
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    suspend fun getVerseLexiconPayload(bookId: Long, chapter: Long, verse: Long, verseText: String): VerseLexiconPayload? = withContext(ioDispatcher) {
-        val db = ensureInitialized() ?: return@withContext null
-        try {
-            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
-            if (rawEntries.isEmpty()) return@withContext null
-            mapToPayload(rawEntries, verseText)
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     suspend fun getVocabularyAndPayload(bookId: Long, chapter: Long, verse: Long, verseText: String): Pair<List<LexiconEntry>, VerseLexiconPayload?> = withContext(ioDispatcher) {
-        val db = ensureInitialized() ?: return@withContext emptyList<LexiconEntry>() to null
+        if (!ensureInitialized()) return@withContext emptyList<LexiconEntry>() to null
+        val lexicon = lexiconDb!!
+        val wordsDefinitions = wordsDefinitionsDb!!
         try {
-            val rawEntries = db.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
+            val rawEntries = lexicon.lexiconQueries.getVocabularyForVerse(bookId, chapter, verse).awaitAsList()
             if (rawEntries.isEmpty()) return@withContext emptyList<LexiconEntry>() to null
-            
-            enrichVocabulary(db, rawEntries) to mapToPayload(rawEntries, verseText)
+
+            enrichVocabulary(lexicon, wordsDefinitions, rawEntries) to VerseLexiconPayload(
+                verse = verseText,
+                source = rawEntries.map {
+                    WordTagMapping(
+                        orig = it.original_word,
+                        tags = it.strong_code
+                    )
+                }
+            )
         } catch (_: Exception) {
             emptyList<LexiconEntry>() to null
         }
     }
 
-    private fun mapToPayload(rawEntries: List<com.abuhrov.openword.db.GetVocabularyForVerse>, verseText: String): VerseLexiconPayload {
-        val sourceList = rawEntries.map { 
-            WordTagMapping(heb = it.original_word, tags = it.strong_code)
+    suspend fun getLexiconEntry(strongCode: String): LexiconEntry? = withContext(ioDispatcher) {
+        if (!ensureInitialized()) return@withContext null
+        val lexicon = lexiconDb!!
+        val wordsDefinitions = wordsDefinitionsDb!!
+
+        try {
+            val normalizedCode = normalizeStrongCode(strongCode)
+            val lex = lexicon.lexiconQueries.getLexiconDefinition(normalizedCode).awaitAsOneOrNull()
+            val def = wordsDefinitions.wordsDefinitionsDbQueries.getLexiconDefinition(normalizedCode).awaitAsOneOrNull()
+
+            if (lex == null && def == null) return@withContext null
+
+            LexiconEntry(
+                strongCode = normalizedCode,
+                shortDefinition = lex?.gloss ?: def?.short_definition ?: "",
+                fullDefinition = def?.definition ?: lex?.definition,
+                transliteration = lex?.transliteration ?: def?.transliteration,
+                originalWord = lex?.original_word ?: def?.lexeme,
+                morphology = lex?.morphology
+            )
+        } catch (_: Exception) {
+            null
         }
-        return VerseLexiconPayload(verse = verseText, source = sourceList)
     }
 
-    private suspend fun enrichVocabulary(db: LexiconDb, rawEntries: List<com.abuhrov.openword.db.GetVocabularyForVerse>): List<LexiconEntry> {
-        // 1. Collect all unique raw codes across all words in the verse
-        val allRawCodes = rawEntries.flatMap { entry ->
-            Constants.STRONGS_PATTERN.findAll(entry.strong_code).map { it.value }
-        }.toSet()
 
+    private suspend fun enrichVocabulary(
+        lexiconDb: LexiconDb,
+        definitionsDb: WordsDefinitionsDb,
+        rawEntries: List<GetVocabularyForVerse>
+    ): List<LexiconEntry> {
         // 2. Batch lookup lexicon entries with fallback logic
-        val lexiconMap = batchLookupLexicon(db, allRawCodes)
+        val lexiconMap = batchLookupLexicon(lexiconDb, rawEntries)
+        val roots = rawEntries.flatMap { classifyStrongs(it.strong_code).roots }
+        val definitions = definitionsDb.wordsDefinitionsDbQueries.getLexiconBatch(roots).awaitAsList()
 
         // 3. Process each entry, splitting multi-tag strings into individual LexiconEntry objects
-        return rawEntries.flatMap { entry ->
+        val strongLexicons = rawEntries.flatMap { entry ->
             val classification = classifyStrongs(entry.strong_code)
-            
+
             // Create entries for prefixes, roots, and suffixes separately to allow exact mapping
             val allCodes = classification.prefixes + classification.roots + classification.suffixes
-            
             allCodes.map { rawTag ->
                 val lexicon = lexiconMap[rawTag]
                 LexiconEntry(
                     strongCode = normalizeStrongCode(rawTag),
-                    originalWord = entry.original_word,
-                    gloss = lexicon?.gloss ?: "Unknown",
+                    shortDefinition = lexicon?.gloss ?: "",
+                    fullDefinition = lexicon?.definition,
                     transliteration = lexicon?.transliteration,
-                    definition = lexicon?.definition
+                    originalWord = lexicon?.original_word,
+                    morphology = lexicon?.morphology
                 )
             }
-        }.distinctBy { it.strongCode }
+        }.associateBy { it.strongCode }
+
+        definitions.forEach {
+            strongLexicons[it.topic]?.fullDefinition = it.definition
+        }
+
+        return strongLexicons.values.toList()
     }
 
 
 
-    private suspend fun batchLookupLexicon(db: LexiconDb, rawCodes: Set<String>): Map<String, com.abuhrov.openword.db.Lexicon> {
+    private suspend fun batchLookupLexicon(
+        lexiconDb: LexiconDb,
+        rawCodes: List<GetVocabularyForVerse>
+    ): Map<String, Lexicon> {
         val candidates = mutableSetOf<String>()
 
         for (rawCode in rawCodes) {
-            val code = normalizeStrongCode(rawCode)
-            candidates.add(code)
-
-            if (code.length > 1 && code.last().isLetter()) {
-                val lastChar = code.last()
-                val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
-                candidates.add(code.dropLast(1) + swappedLast)
-                candidates.add(code.dropLast(1))
+            val allMatches = Constants.STRONGS_PATTERN.findAll(rawCode.strong_code)
+            for (match in allMatches) {
+                candidates.add(match.value)
+                if (match.value.length > 1 && match.value.last().isLetter()) {
+                    // Search for both lowercase and uppercase variants along with the root variant
+                    val lastChar = match.value.last()
+                    val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
+                    candidates.add(match.value.dropLast(1))
+                    candidates.add(match.value.dropLast(1) + swappedLast)
+                }
             }
         }
 
-        val results = db.lexiconQueries.getLexiconBatch(candidates.toList()).awaitAsList()
-        val resultMap = results.associateBy { it.strong_code }
+        val results = lexiconDb.lexiconQueries.getLexiconBatch(candidates.toList()).awaitAsList()
+        val resultMap = results.associateBy { it.strong_code }.toMutableMap()
 
-        val finalMap = mutableMapOf<String, com.abuhrov.openword.db.Lexicon>()
+        val finalMap = mutableMapOf<String, Lexicon>()
         for (rawCode in rawCodes) {
-            val code = normalizeStrongCode(rawCode)
-            var lexicon = resultMap[code]
-            
-            if (lexicon == null && code.length > 1 && code.last().isLetter()) {
-                val lastChar = code.last()
-                val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
-                lexicon = resultMap[code.dropLast(1) + swappedLast]
-            }
-            
-            if (lexicon == null && code.length > 1 && code.last().isLetter()) {
-                lexicon = resultMap[code.dropLast(1)]
-            }
-            
-            if (lexicon != null) {
-                finalMap[rawCode] = lexicon
+            val allMatches = Constants.STRONGS_PATTERN.findAll(rawCode.strong_code)
+            for (match in allMatches) {
+                val code = match.value
+                var lexicon = resultMap[code]
+                
+                if (lexicon == null && code.length > 1 && code.last().isLetter()) {
+                    val lastChar = code.last()
+                    val swappedLast = if (lastChar.isUpperCase()) lastChar.lowercaseChar() else lastChar.uppercaseChar()
+                    lexicon = resultMap[code.dropLast(1) + swappedLast]
+                }
+                
+                if (lexicon == null && code.length > 1 && code.last().isLetter()) {
+                    lexicon = resultMap[code.dropLast(1)]
+                }
+                
+                if (lexicon != null) {
+                    finalMap[match.value] = lexicon
+                }
             }
         }
         return finalMap
@@ -166,19 +195,22 @@ object VocabularyRepository {
         val suffixes: List<String>
     )
 
-
-
-    private suspend fun ensureInitialized(): LexiconDb? {
-        if (database == null) {
+    private suspend fun ensureInitialized(): Boolean {
+        if (lexiconDb == null || wordsDefinitionsDb == null) {
             try {
                 val simpleName = Constants.LEXICON_DB_NAME.substringAfterLast('/')
                 prepareDatabaseFile(Constants.LEXICON_DB_NAME)
                 val driver = DatabaseDriverFactory().createDriver(simpleName)
-                database = LexiconDb(driver)
+                lexiconDb = LexiconDb(driver)
+                
+                val scSimpleName = Constants.WORDS_DEFINITIONS_DB_NAME.substringAfterLast('/')
+                prepareDatabaseFile(Constants.WORDS_DEFINITIONS_DB_NAME)
+                val scDriver = DatabaseDriverFactory().createDriver(scSimpleName)
+                wordsDefinitionsDb = WordsDefinitionsDb(scDriver)
             } catch (_: Exception) {
-                return null
+                return false
             }
         }
-        return database
+        return lexiconDb != null && wordsDefinitionsDb != null
     }
 }

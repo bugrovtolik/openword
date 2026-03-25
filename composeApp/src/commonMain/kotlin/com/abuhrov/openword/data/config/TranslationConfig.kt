@@ -43,6 +43,10 @@ val availableTranslations = listOf(
 
 val availableCommentaries = listOf(
     CommentarySource("Далласька богословська семінарія", "commentaries/dallas.SQLite3"),
+    CommentarySource("Джон МакАртур", "commentaries/macarthur.SQLite3"),
     CommentarySource("Біблійний культурно-історичний коментар", "commentaries/IVP.SQLite3"),
     CommentarySource("Томас Ко́нстебл", "commentaries/constable.SQLite3"),
+    CommentarySource("Джозеф Бенсон", "commentaries/benson.SQLite3"),
+    CommentarySource("Кембриджська Біблія для шкіл та коледжів", "commentaries/CBSC.SQLite3"),
+    CommentarySource("Джонатан Едвардс", "commentaries/edwards.SQLite3"),
 )

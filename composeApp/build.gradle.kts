@@ -91,6 +91,16 @@ sqldelight {
             generateAsync = true
             srcDirs.setFrom("src/commonMain/sqldelight/lexiconDb")
         }
+        register("WordsDefinitionsDb") {
+            packageName = "com.abuhrov.openword.db"
+            generateAsync = true
+            srcDirs.setFrom("src/commonMain/sqldelight/wordsDefinitionsDb")
+        }
+        register("StrongCodesDb") {
+            packageName = "com.abuhrov.openword.db"
+            generateAsync = true
+            srcDirs.setFrom("src/commonMain/sqldelight/strongCodesDb")
+        }
         register("CommentaryDb") {
             packageName = "com.abuhrov.openword.db"
             generateAsync = true
@@ -124,6 +134,13 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_25
         targetCompatibility = JavaVersion.VERSION_25
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 }
 

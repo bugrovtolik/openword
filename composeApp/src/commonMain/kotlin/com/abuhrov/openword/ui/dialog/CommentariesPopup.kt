@@ -4,8 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -19,16 +20,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.model.CommentaryItem
-import com.abuhrov.openword.network.GeminiApiClient
+import com.abuhrov.openword.network.DeepLApiClient
 import com.abuhrov.openword.util.parseCommentaryText
-import com.abuhrov.openword.util.stripJsonMarkdown
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-
-private val json = Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true }
 
 @Composable
 fun CommentariesPopup(
@@ -36,35 +34,15 @@ fun CommentariesPopup(
     chapter: Long,
     verse: Long,
     commentaries: List<CommentaryItem>,
-    autoTranslateEnabled: Boolean,
+    bible: Bible?,
     onDismiss: () -> Unit
 ) {
-    var showTranslated by remember { mutableStateOf(autoTranslateEnabled) }
-    var translatedCommentaries by remember { mutableStateOf<List<CommentaryItem>?>(null) }
-    var isTranslating by remember { mutableStateOf(false) }
+    // Per-commentary translation state
+    var translatedTexts by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    var translatingIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var showTranslatedFlags by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var versePreviewRef by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(commentaries, showTranslated) {
-        if (showTranslated && commentaries.isNotEmpty() && translatedCommentaries == null) {
-            isTranslating = true
-            scope.launch(Dispatchers.Default) {
-                try {
-                    val ukrainian = commentaries.find { it.sourceName != "Далласька богословська семінарія" }
-                    val jsonList = json.encodeToString(commentaries.filter { it != ukrainian })
-                    val prompt = "Translate the 'text' field to Ukrainian. Keep JSON structure. JSON: $jsonList"
-                    val response = GeminiApiClient.generateSingleResponse(prompt)
-                    val cleanJson = stripJsonMarkdown(response)
-                    val result = json.decodeFromString<List<CommentaryItem>>(cleanJson)
-                    withContext(Dispatchers.Main) {
-                        translatedCommentaries = if (ukrainian != null) listOf(ukrainian) + result else result
-                        isTranslating = false
-                    }
-                } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { isTranslating = false }
-                }
-            }
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).pointerInput(Unit) { detectTapGestures { onDismiss() } }) {
         Surface(
@@ -77,35 +55,103 @@ fun CommentariesPopup(
                         Text("Commentaries", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("$bookName $chapter:$verse", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                     }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (commentaries.isNotEmpty()) {
-                            TextButton(onClick = { showTranslated = !showTranslated }) {
-                                Icon(Icons.Default.Translate, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(if (showTranslated) "Оригінал" else "Переклад")
-                            }
-                        }
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
-                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                 }
 
-                val listToShow = if (showTranslated && translatedCommentaries != null) translatedCommentaries!! else commentaries
-
-                if (isTranslating && showTranslated && translatedCommentaries == null) {
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (versePreviewRef != null) {
+                    VersePreviewPopup(
+                        referenceUrl = versePreviewRef!!,
+                        bible = bible,
+                        onDismiss = { versePreviewRef = null }
+                    )
                 }
 
-                if (listToShow.isEmpty() && !isTranslating) {
+                if (commentaries.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No commentaries.", color = Color.Gray) }
                 } else {
                     SelectionContainer {
                         LazyColumn(modifier = Modifier.padding(16.dp)) {
-                            items(listToShow) { comment ->
+                            itemsIndexed(commentaries) { index, comment ->
+                                val isTranslating = index in translatingIndices
+                                val isShowingTranslated = index in showTranslatedFlags
+                                val translatedText = translatedTexts[index]
+
                                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                                    Text(comment.sourceName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            comment.sourceName,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        if (isTranslating) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else if (comment.sourceName != "Далласька богословська семінарія") {
+                                            TextButton(
+                                                onClick = {
+                                                    if (isShowingTranslated) {
+                                                        // Toggle back to original
+                                                        showTranslatedFlags = showTranslatedFlags - index
+                                                    } else {
+                                                        // Toggle to translated
+                                                        showTranslatedFlags = showTranslatedFlags + index
+                                                        if (translatedText == null) {
+                                                            // Need to fetch translation
+                                                            translatingIndices = translatingIndices + index
+                                                            scope.launch(Dispatchers.Default) {
+                                                                try {
+                                                                    val result = DeepLApiClient.translateText(comment.text)
+                                                                    withContext(Dispatchers.Main) {
+                                                                        translatedTexts = translatedTexts + (index to result)
+                                                                        translatingIndices = translatingIndices - index
+                                                                    }
+                                                                } catch (_: Exception) {
+                                                                    withContext(Dispatchers.Main) {
+                                                                        translatingIndices = translatingIndices - index
+                                                                        showTranslatedFlags = showTranslatedFlags - index
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Icon(Icons.Default.Translate, null, modifier = Modifier.size(14.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    if (isShowingTranslated && translatedText != null) "Оригінал" else "Переклад",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text(parseCommentaryText(comment.text.replace("<br>", "\n")), style = MaterialTheme.typography.bodyMedium)
+
+                                    val displayText = if (isShowingTranslated && translatedText != null) translatedText else comment.text
+                                    val styledText = remember(displayText) { parseCommentaryText(displayText.replace("<br>", "\n")) }
+
+                                    ClickableText(
+                                        text = styledText,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        onClick = { pos ->
+                                            styledText.getStringAnnotations(tag = "REFERENCE", start = pos, end = pos)
+                                                .firstOrNull()?.let { annotation ->
+                                                    versePreviewRef = annotation.item
+                                                }
+                                        }
+                                    )
                                 }
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             }
