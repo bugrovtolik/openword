@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openword-1774704558301';
+const CACHE_NAME = 'openword-1774738931444';
 const ASSETS = [
   "",
   "236.js",
