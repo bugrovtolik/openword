@@ -38,6 +38,7 @@ fun BibleTopBar(
     onShowCommentaries: () -> Unit,
     onShowVocabulary: () -> Unit,
     onShowCrossReferences: () -> Unit,
+    onShowCompareTranslations: () -> Unit,
     onShowAI: () -> Unit,
     onClearSelection: () -> Unit
 ) {
@@ -84,6 +85,9 @@ fun BibleTopBar(
                             tint = if (isSingleSelection) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
                         )
+                    }
+                    IconButton(onClick = onShowCompareTranslations) {
+                        Icon(Icons.Default.Compare, "Порівняти переклади", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     IconButton(onClick = onShowAI) {
                         Icon(Icons.Default.Assistant, "AI", tint = MaterialTheme.colorScheme.onPrimary)

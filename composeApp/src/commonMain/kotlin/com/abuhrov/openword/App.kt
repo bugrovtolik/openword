@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.abuhrov.openword.data.config.availableTranslations
 import com.abuhrov.openword.data.local.clearAllLocalData
+import com.abuhrov.openword.data.local.prepareDatabaseFile
+import com.abuhrov.openword.data.platform.checkDatabaseFile
 import com.abuhrov.openword.data.platform.ioDispatcher
 import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
@@ -67,6 +69,9 @@ fun App() {
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
         var showCrossReferencesForVerseNumber by remember { mutableStateOf<Long?>(null) }
         var currentCrossReferenceList by remember { mutableStateOf<List<CrossReferenceUiItem>>(emptyList()) }
+        var showCompareTranslationsForVerses by remember { mutableStateOf<List<Verse>?>(null) }
+        var currentCompareTranslationsList by remember { mutableStateOf<List<CompareTranslationsUiItem>>(emptyList()) }
+        var compareRefreshTrigger by remember { mutableStateOf(0) }
         var showAIPopupForVerses by remember { mutableStateOf<List<Verse>?>(null) }
         var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
         var pendingStrongCode by remember { mutableStateOf<String?>(null) }
@@ -270,6 +275,34 @@ fun App() {
             } else emptyList()
         }
 
+        LaunchedEffect(showCompareTranslationsForVerses, compareRefreshTrigger) {
+            currentCompareTranslationsList = if (showCompareTranslationsForVerses != null && selectedBook != null) {
+                val targets = showCompareTranslationsForVerses!!.map { it.number }
+                val results = mutableListOf<CompareTranslationsUiItem>()
+                for (translation in availableTranslations) {
+                    try {
+                        val simpleName = translation.fileName.substringAfterLast('/')
+                        val isDownloaded = withContext(ioDispatcher) { checkDatabaseFile(simpleName) }
+                        
+                        if (isDownloaded) {
+                            val tempBible = withContext(ioDispatcher) { loadBibleData(translation) }
+                            val verses = withContext(ioDispatcher) {
+                                tempBible.getVerses(selectedBook!!.id, selectedChapter)
+                                    .filter { it.number in targets }
+                            }
+                            results.add(CompareTranslationsUiItem(translation, verses.sortedBy { it.number }, true))
+                        } else {
+                            results.add(CompareTranslationsUiItem(translation, isDownloaded = false))
+                        }
+                    } catch (_: Exception) {
+                        results.add(CompareTranslationsUiItem(translation, isDownloaded = false))
+                    }
+                }
+                results.sortedWith(compareByDescending<CompareTranslationsUiItem> { it.isDownloaded }
+                    .thenBy { it.translation.displayName })
+            } else emptyList()
+        }
+
         Scaffold(
             topBar = {
                 BibleTopBar(
@@ -310,6 +343,12 @@ fun App() {
                             clearSelection()
                         }
                     },
+                    onShowCompareTranslations = {
+                        if (selectedVerses.isNotEmpty()) {
+                            showCompareTranslationsForVerses = selectedVerses.toList()
+                            clearSelection()
+                        }
+                    },
                     onShowAI = {
                         if (selectedVerses.isNotEmpty()) {
                             showAIPopupForVerses = selectedVerses.sortedBy { it.number }
@@ -329,7 +368,6 @@ fun App() {
                 bible = bible,
                 selectedBook = selectedBook,
                 selectedChapter = selectedChapter,
-                selectedVerse = selectedVerse,
                 currentVerses = currentVerses,
                 selectedVerses = selectedVerses,
                 fontSizeScale = fontSizeScale,
@@ -385,6 +423,26 @@ fun App() {
                     }
                 },
                 onDismiss = { showCrossReferencesForVerseNumber = null }
+            )
+        }
+
+        if (showCompareTranslationsForVerses != null) {
+            CompareTranslationsPopup(
+                bookName = selectedBook?.shortName,
+                chapter = selectedChapter,
+                verseNumbers = formatVerseNumbers(showCompareTranslationsForVerses!!.map { it.number }),
+                compareItems = currentCompareTranslationsList,
+                onDownloadTranslation = { translation ->
+                    scope.launch {
+                        try {
+                            prepareDatabaseFile(translation.fileName)
+                            compareRefreshTrigger++
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Помилка завантаження: ${e.message}")
+                        }
+                    }
+                },
+                onDismiss = { showCompareTranslationsForVerses = null }
             )
         }
 

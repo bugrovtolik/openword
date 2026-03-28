@@ -47,7 +47,6 @@ fun BibleReaderScreen(
     bible: Bible?,
     selectedBook: Book?,
     selectedChapter: Long,
-    selectedVerse: Long,
     currentVerses: List<Verse>,
     selectedVerses: Set<Verse>,
     fontSizeScale: Float,
@@ -232,7 +231,6 @@ fun BibleReaderScreen(
                                         },
                                         onLongPress = { _ ->
                                             onVerseLongPressed(verse)
-                                            onVerseSelected(verse.number)
                                             showMarkerNote = null
                                             showDictionaryWord = null
                                             dictionaryDefinition = null

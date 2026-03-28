@@ -23,15 +23,15 @@ function getAllFiles(dir, baseDir = dir) {
             results = results.concat(getAllFiles(fullPath, baseDir));
         } else {
             const relative = path.relative(baseDir, fullPath).replace(/\\/g, '/');
-            results.push('/' + relative);
+            results.push(relative);
         }
     });
     return results;
 }
 
 const files = getAllFiles(distDir);
-if (!files.includes('/')) files.unshift('/');
-if (!files.includes('/index.html')) files.unshift('/index.html');
+if (!files.includes('')) files.unshift('');
+if (!files.includes('index.html')) files.unshift('index.html');
 
 const newContent = fs.readFileSync(templatePath, 'utf8')
     .replace('__ASSETS_PLACEHOLDER__', JSON.stringify(files, null, 2))
