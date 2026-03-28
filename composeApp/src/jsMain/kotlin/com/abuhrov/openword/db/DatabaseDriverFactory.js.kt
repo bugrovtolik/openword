@@ -53,7 +53,7 @@ private fun initSqlJsSafe(): Promise<dynamic> = js("""
         try {
             window.initSqlJs({
                 locateFile: function(file) {
-                    return 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm';
+                    return file;
                 },
                 printErr: function(text) {
                     console.error("SQL.js stderr:", text);

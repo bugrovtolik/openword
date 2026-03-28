@@ -11,5 +11,11 @@ fun main() {
         ComposeViewport(body) {
             App()
         }
+        val loader = document.getElementById("loading-screen")
+        if (loader != null) {
+            loader.asDynamic().style.opacity = "0"
+            loader.asDynamic().style.pointerEvents = "none"
+            kotlinx.browser.window.setTimeout({ loader.remove() }, 500)
+        }
     }
 }

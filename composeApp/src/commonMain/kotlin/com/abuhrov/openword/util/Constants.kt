@@ -30,6 +30,7 @@ object Constants {
         const val LAST_VERSE = "last_verse"
         const val NAV_VIEW_MODE = "nav_view_mode"
         const val SEARCH_STRICTNESS = "search_strictness"
+        const val HISTORY = "history"
     }
 
     // --- Settings Defaults ---

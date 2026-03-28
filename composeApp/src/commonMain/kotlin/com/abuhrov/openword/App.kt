@@ -20,6 +20,8 @@ import com.abuhrov.openword.data.repository.*
 import com.abuhrov.openword.domain.search.SearchIndexer
 import com.abuhrov.openword.model.*
 import com.abuhrov.openword.ui.dialog.*
+import com.abuhrov.openword.ui.dialog.HistoryDialog
+import com.abuhrov.openword.ui.dialog.HistoryItem
 import com.abuhrov.openword.ui.screen.BibleReaderScreen
 import com.abuhrov.openword.ui.screen.BibleTopBar
 import com.abuhrov.openword.ui.theme.AppTheme
@@ -78,9 +80,34 @@ fun App() {
 
         var showTranslationSelection by remember { mutableStateOf(false) }
         var showNavSelection by remember { mutableStateOf(false) }
+        var showHistoryDialog by remember { mutableStateOf(false) }
         var showSearchDialog by remember { mutableStateOf(false) }
         var currentSearchQuery by remember { mutableStateOf("") }
         var navMode by remember { mutableStateOf(NavMode.BOOK) }
+
+        var historyList by remember {
+            mutableStateOf(
+                Settings.getString(Constants.SettingsKeys.HISTORY, "")
+                    .split(",")
+                    .filter { it.isNotBlank() }
+                    .mapNotNull {
+                        val parts = it.split(":")
+                        if (parts.size == 3) {
+                            val b = parts[0].toLongOrNull()
+                            val c = parts[1].toLongOrNull()
+                            val v = parts[2].toLongOrNull()
+                            if (b != null && c != null && v != null) Triple(b, c, v) else null
+                        } else null
+                    }
+            )
+        }
+
+        val addToHistory: (Long, Long, Long) -> Unit = { bookId, chapter, verse ->
+            val newItem = Triple(bookId, chapter, verse)
+            val newList = (listOf(newItem) + historyList.filter { it != newItem }).take(10)
+            historyList = newList
+            Settings.setString(Constants.SettingsKeys.HISTORY, newList.joinToString(",") { "${it.first}:${it.second}:${it.third}" })
+        }
 
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
@@ -138,12 +165,7 @@ fun App() {
             }
         }
 
-        LaunchedEffect(Unit) {
-            launch(Dispatchers.Default) { VocabularyRepository.initialize() }
-            launch(Dispatchers.Default) { CommentaryRepository.initialize() }
-            launch(Dispatchers.Default) { DictionaryRepository.initialize() }
-            launch(Dispatchers.Default) { CrossReferenceRepository.initialize() }
-        }
+        // Non-critical repositories will be initialized lazily when first used
 
         LaunchedEffect(selectedTranslation) {
             isLoading = true
@@ -355,6 +377,7 @@ fun App() {
                             clearSelection()
                         }
                     },
+                    onHistoryClick = { showHistoryDialog = true },
                     onClearSelection = { clearSelection() }
                 )
             },
@@ -474,7 +497,12 @@ fun App() {
                     navMode = NavMode.CHAPTER
                 },
                 onSelectChapter = { selectedChapter = it; selectedVerse = 1L; navMode = NavMode.VERSE },
-                onSelectVerse = { selectedVerse = it; showNavSelection = false; scope.launch { listState.scrollToItem(it.toInt()) } },
+                onSelectVerse = { verse ->
+                    selectedVerse = verse
+                    if (selectedBook != null) addToHistory(selectedBook!!.id, selectedChapter, verse)
+                    showNavSelection = false
+                    scope.launch { listState.scrollToItem(verse.toInt()) }
+                },
                 onDismiss = { showNavSelection = false }
             )
         }
@@ -493,6 +521,30 @@ fun App() {
                     }
                 },
                 onDismiss = { showSettingsDialog = false }
+            )
+        }
+
+        if (showHistoryDialog) {
+            val history = historyList.mapNotNull { triple ->
+                val book = bible?.books?.find { it.id == triple.first }
+                if (book != null) {
+                    HistoryItem(triple.first, book.shortName, triple.second, triple.third)
+                } else null
+            }
+            HistoryDialog(
+                history = history,
+                onSelect = { b, c, v ->
+                    val newBook = bible?.books?.find { it.id == b }
+                    if (newBook != null) {
+                        selectedBook = newBook
+                        selectedChapter = c
+                        selectedVerse = v
+                        addToHistory(b, c, v)
+                        showHistoryDialog = false
+                        clearSelection()
+                    }
+                },
+                onDismiss = { showHistoryDialog = false }
             )
         }
 

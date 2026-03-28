@@ -40,6 +40,7 @@ fun BibleTopBar(
     onShowCrossReferences: () -> Unit,
     onShowCompareTranslations: () -> Unit,
     onShowAI: () -> Unit,
+    onHistoryClick: () -> Unit,
     onClearSelection: () -> Unit
 ) {
     val isSelectionMode = selectedVerses.isNotEmpty()
@@ -176,10 +177,16 @@ fun BibleTopBar(
                         }) {
                             Icon(Icons.Default.Search, "Знайти", tint = MaterialTheme.colorScheme.onPrimary)
                         }
+                        IconButton(onClick = onHistoryClick) {
+                            Icon(Icons.Default.History, "Історія", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
                         IconButton(onClick = { isSearchExpanded = true; searchQuery = "" }) {
                             Icon(Icons.Default.Search, "Пошук", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        IconButton(onClick = onHistoryClick) {
+                            Icon(Icons.Default.History, "Історія", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                     IconButton(onClick = onSettingsClick) {
