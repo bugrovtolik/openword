@@ -26,7 +26,7 @@ fun parseReferenceUrl(url: String): Triple<Long, Long, Long>? {
             val bookId = parts[0].removePrefix("B:").toLong()
             val chapVerse = parts[1].split(":")
             val chapter = chapVerse[0].toLong()
-            val verse = chapVerse[1].toLong()
+            val verse = chapVerse[1].takeWhile { it.isDigit() }.toLong()
             Triple(bookId, chapter, verse)
         } else null
     } catch (_: Exception) {

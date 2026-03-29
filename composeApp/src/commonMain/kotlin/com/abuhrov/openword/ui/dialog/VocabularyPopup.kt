@@ -26,6 +26,7 @@ import com.abuhrov.openword.model.LexiconEntry
 import com.abuhrov.openword.model.VerseLexiconPayload
 import com.abuhrov.openword.network.DeepLApiClient
 import com.abuhrov.openword.network.GeminiApiClient
+import com.abuhrov.openword.ui.util.safeDismissClick
 import com.abuhrov.openword.util.stripJsonMarkdown
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -133,7 +134,7 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPaylo
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).pointerInput(Unit) { detectTapGestures { onDismiss() } }) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).safeDismissClick { onDismiss() }) {
         Surface(modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.9f).fillMaxHeight(0.8f)) {
             Column {
                 Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -212,7 +213,7 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPaylo
 
         // Sub-dialog for specific Word Click
         if (clickedLinkedWord != null) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).pointerInput(Unit) { detectTapGestures { clickedLinkedWord = null } }) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).safeDismissClick { clickedLinkedWord = null }) {
                 Surface(modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.95f).fillMaxHeight(0.7f)) {
                     Column {
                         Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.model.Book
+import com.abuhrov.openword.ui.util.safeDismissClick
 
 data class HistoryItem(
     val bookId: Long,
@@ -37,7 +38,7 @@ fun HistoryDialog(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.5f))
-            .clickable { onDismiss() },
+            .safeDismissClick { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
         Surface(

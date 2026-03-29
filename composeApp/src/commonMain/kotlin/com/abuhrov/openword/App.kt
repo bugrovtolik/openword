@@ -69,6 +69,7 @@ fun App() {
         var currentVerseLexiconPayload by remember { mutableStateOf<VerseLexiconPayload?>(null) }
         var showCommentariesForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentCommentariesList by remember { mutableStateOf<List<CommentaryItem>>(emptyList()) }
+        var isCommentariesLoading by remember { mutableStateOf(false) }
         var showCrossReferencesForVerseNumber by remember { mutableStateOf<Long?>(null) }
         var currentCrossReferenceList by remember { mutableStateOf<List<CrossReferenceUiItem>>(emptyList()) }
         var showCompareTranslationsForVerses by remember { mutableStateOf<List<Verse>?>(null) }
@@ -166,6 +167,9 @@ fun App() {
         }
 
         // Non-critical repositories will be initialized lazily when first used
+        LaunchedEffect(Unit) {
+            CommentaryRepository.initialize()
+        }
 
         LaunchedEffect(selectedTranslation) {
             isLoading = true
@@ -250,13 +254,18 @@ fun App() {
 
 
         LaunchedEffect(showCommentariesForVerse) {
-            currentCommentariesList = if (showCommentariesForVerse != null && selectedBook != null) {
-                try {
+            if (showCommentariesForVerse != null && selectedBook != null) {
+                isCommentariesLoading = true
+                currentCommentariesList = try {
                     withContext(Dispatchers.Default) { getCommentariesForVerse(showCommentariesForVerse!!) }
                 } catch (_: Exception) {
                     emptyList()
                 }
-            } else emptyList()
+                isCommentariesLoading = false
+            } else {
+                currentCommentariesList = emptyList()
+                isCommentariesLoading = false
+            }
         }
 
         LaunchedEffect(showCrossReferencesForVerseNumber) {
@@ -425,7 +434,7 @@ fun App() {
         if (showCommentariesForVerse != null) {
             CommentariesPopup(
                 bookName = selectedBook?.shortName, chapter = selectedChapter, verse = showCommentariesForVerse!!.number,
-                commentaries = currentCommentariesList, bible = bible, onDismiss = { showCommentariesForVerse = null }
+                commentaries = currentCommentariesList, isLoading = isCommentariesLoading, bible = bible, onDismiss = { showCommentariesForVerse = null }
             )
         }
 
@@ -516,7 +525,10 @@ fun App() {
                 onSearchStrictnessChange = { searchStrictness = it; Settings.setString(Constants.SettingsKeys.SEARCH_STRICTNESS, it.name) },
                 onReloadAllData = {
                     scope.launch {
-                        isLoading = true; clearAllLocalData(); try { bible = loadBibleData(selectedTranslation) } catch (_: Exception) {}
+                        isLoading = true; clearAllLocalData(); try { 
+                            bible = loadBibleData(selectedTranslation)
+                            CommentaryRepository.initialize()
+                        } catch (_: Exception) {}
                         isLoading = false; showSettingsDialog = false
                     }
                 },

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.model.NavigationViewMode
 import com.abuhrov.openword.model.SearchStrictness
+import com.abuhrov.openword.ui.util.safeDismissClick
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +38,7 @@ fun SettingsDialog(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.5f))
-            .clickable { onDismiss() },
+            .safeDismissClick { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -81,7 +82,7 @@ fun SettingsDialog(
                         checked = currentAutoTranslate,
                         onCheckedChange = onAutoTranslateChange
                     )
-                    Text("Автопереклад (Коментарі/Словник)")
+                    Text("Автопереклад коментарів")
                 }
                 Spacer(Modifier.height(16.dp))
 

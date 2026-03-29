@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.model.CommentaryItem
 import com.abuhrov.openword.network.DeepLApiClient
+import com.abuhrov.openword.ui.util.safeDismissClick
 import com.abuhrov.openword.util.parseCommentaryText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,6 +35,7 @@ fun CommentariesPopup(
     chapter: Long,
     verse: Long,
     commentaries: List<CommentaryItem>,
+    isLoading: Boolean,
     bible: Bible?,
     onDismiss: () -> Unit
 ) {
@@ -44,7 +46,7 @@ fun CommentariesPopup(
     var versePreviewRef by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).pointerInput(Unit) { detectTapGestures { onDismiss() } }) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).safeDismissClick { onDismiss() }) {
         Surface(
             modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.9f).fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 8.dp
@@ -66,7 +68,11 @@ fun CommentariesPopup(
                     )
                 }
 
-                if (commentaries.isEmpty()) {
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (commentaries.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No commentaries.", color = Color.Gray) }
                 } else {
                     SelectionContainer {
