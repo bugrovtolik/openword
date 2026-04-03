@@ -254,6 +254,24 @@ fun BibleReaderScreen(
                 }
             }
 
+            // Non-interactive dead zone at the bottom to prevent accidental touches
+            // during iOS swipe-up gesture
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+            )
+
+
             if (showMarkerNote != null && selectedVerses.isEmpty()) {
                 MarkerNotePopup(
                     text = showMarkerNote!!,
