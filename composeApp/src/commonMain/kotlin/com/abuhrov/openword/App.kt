@@ -76,7 +76,6 @@ fun App() {
         var currentCompareTranslationsList by remember { mutableStateOf<List<CompareTranslationsUiItem>>(emptyList()) }
         var compareRefreshTrigger by remember { mutableStateOf(0) }
         var showAIPopupForVerses by remember { mutableStateOf<List<Verse>?>(null) }
-        var selectedDefinition by remember { mutableStateOf<LexiconEntry?>(null) }
         var pendingStrongCode by remember { mutableStateOf<String?>(null) }
 
         var showTranslationSelection by remember { mutableStateOf(false) }
@@ -236,19 +235,16 @@ fun App() {
                     currentVerseLexiconPayload = payload
                     
                     if (pendingStrongCode != null) { 
-                        selectedDefinition = currentVocabularyList.find { it.strongCode.contains(pendingStrongCode!!) }
+                        // Note: To be fully implemented into aiLinkedWords highlighting
                         pendingStrongCode = null 
-                    } else {
-                        selectedDefinition = null
                     }
                 } catch (_: Exception) { 
                     currentVocabularyList = emptyList()
                     currentVerseLexiconPayload = null 
                 }
-            } else { 
+            } else {
                 currentVocabularyList = emptyList()
                 currentVerseLexiconPayload = null
-                selectedDefinition = null 
             }
         }
 
@@ -426,8 +422,8 @@ fun App() {
         if (showVocabularyForVerse != null) {
             VocabularyPopup(
                 selectedBookName = selectedBook?.shortName, chapter = selectedChapter, verse = showVocabularyForVerse!!.number,
-                vocabularyList = currentVocabularyList, verseLexiconPayload = currentVerseLexiconPayload, selectedDefinition = selectedDefinition,
-                bible = bible, onSelectDefinition = { selectedDefinition = it }, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
+                vocabularyList = currentVocabularyList, verseLexiconPayload = currentVerseLexiconPayload,
+                bible = bible, onDismiss = { showVocabularyForVerse = null; pendingStrongCode = null }
             )
         }
 

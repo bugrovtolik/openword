@@ -279,22 +279,20 @@ fun BibleReaderScreen(
                     onDismiss = { showMarkerNote = null },
                     onReferenceClick = { referenceUrl ->
                         try {
-                            if (bible != null) {
-                                val parts = referenceUrl.replace("'", "").trim().split(Regex("\\s+"))
-                                if (parts.size >= 2) {
-                                    val bookId = parts[0].removePrefix("B:").toLong()
-                                    val chapVerse = parts[1].split(":")
-                                    val c = chapVerse[0].toLong()
-                                    val v = chapVerse[1].toLong()
-                                    val targetBook = bible.books.find { it.id == bookId }
-                                    scope.launch {
-                                        val verses = bible.getVerses(bookId, c)
-                                        val targetV = verses.find { it.number == v }
-                                        if (targetV != null) {
-                                            withContext(Dispatchers.Main) {
-                                                val cleanText = com.abuhrov.openword.util.stripTags(targetV.text)
-                                                showMarkerNote = "📜 ${targetBook?.shortName ?: "?"} $c:$v\n\n$cleanText"
-                                            }
+                            val parts = referenceUrl.replace("'", "").trim().split(Regex("\\s+"))
+                            if (parts.size >= 2) {
+                                val bookId = parts[0].removePrefix("B:").toLong()
+                                val chapVerse = parts[1].split(":")
+                                val c = chapVerse[0].toLong()
+                                val v = chapVerse[1].toLong()
+                                val targetBook = bible.books.find { it.id == bookId }
+                                scope.launch {
+                                    val verses = bible.getVerses(bookId, c)
+                                    val targetV = verses.find { it.number == v }
+                                    if (targetV != null) {
+                                        withContext(Dispatchers.Main) {
+                                            val cleanText = com.abuhrov.openword.util.stripTags(targetV.text)
+                                            showMarkerNote = "📜 ${targetBook?.shortName ?: "?"} $c:$v\n\n$cleanText"
                                         }
                                     }
                                 }
@@ -315,21 +313,19 @@ fun BibleReaderScreen(
                     },
                     onReferenceClicked = { referenceUrl ->
                         try {
-                            if (bible != null) {
-                                val parts = referenceUrl.replace("'", "").trim().split(Regex("\\s+"))
-                                if (parts.size >= 2) {
-                                    val bookId = parts[0].removePrefix("B:").toLong()
-                                    val currentChapVerse = parts[1].split(":")
-                                    val c = currentChapVerse[0].toLong()
-                                    val v = currentChapVerse[1].toLong()
-                                    scope.launch {
-                                        val verses = bible.getVerses(bookId, c)
-                                        val targetV = verses.find { it.number == v }
-                                        if (targetV != null) {
-                                            withContext(Dispatchers.Main) {
-                                                val cleanText = com.abuhrov.openword.util.stripTags(targetV.text)
-                                                dictionaryDefinition = "📜 ВІДДІЛ: $referenceUrl\n\n$cleanText"
-                                            }
+                            val parts = referenceUrl.replace("'", "").trim().split(Regex("\\s+"))
+                            if (parts.size >= 2) {
+                                val bookId = parts[0].removePrefix("B:").toLong()
+                                val currentChapVerse = parts[1].split(":")
+                                val c = currentChapVerse[0].toLong()
+                                val v = currentChapVerse[1].toLong()
+                                scope.launch {
+                                    val verses = bible.getVerses(bookId, c)
+                                    val targetV = verses.find { it.number == v }
+                                    if (targetV != null) {
+                                        withContext(Dispatchers.Main) {
+                                            val cleanText = com.abuhrov.openword.util.stripTags(targetV.text)
+                                            dictionaryDefinition = "📜 ВІДДІЛ: $referenceUrl\n\n$cleanText"
                                         }
                                     }
                                 }

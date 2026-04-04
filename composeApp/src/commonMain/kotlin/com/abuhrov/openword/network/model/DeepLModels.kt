@@ -8,6 +8,11 @@ data class DeepLRequest(
 )
 
 @Serializable
+data class DeepLBatchRequest(
+    val texts: List<String>
+)
+
+@Serializable
 data class DeepLResponse(
     val translations: List<DeepLTranslation>
 )

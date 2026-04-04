@@ -18,6 +18,7 @@ object Constants {
 
     // --- Network ---
     const val GEMINI_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev/gemini"
+    const val GROQ_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev/groq"
     const val DEEPL_PROXY_URL = "https://openword-api.bugrovtolik.workers.dev/deepl"
 
     // --- Settings Keys ---

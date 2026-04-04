@@ -2,21 +2,19 @@ package com.abuhrov.openword.ui.dialog
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.abuhrov.openword.data.repository.Bible
@@ -25,11 +23,10 @@ import com.abuhrov.openword.model.AILinkedWord
 import com.abuhrov.openword.model.LexiconEntry
 import com.abuhrov.openword.model.VerseLexiconPayload
 import com.abuhrov.openword.network.DeepLApiClient
-import com.abuhrov.openword.network.GeminiApiClient
+import com.abuhrov.openword.network.GroqApiClient
 import com.abuhrov.openword.ui.util.safeDismissClick
 import com.abuhrov.openword.util.stripJsonMarkdown
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -44,9 +41,7 @@ fun VocabularyPopup(
     verse: Long,
     vocabularyList: List<LexiconEntry>,
     verseLexiconPayload: VerseLexiconPayload?,
-    selectedDefinition: LexiconEntry?, // Preserved for compatibility
     bible: Bible?,
-    onSelectDefinition: (LexiconEntry?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var aiLinkedWords by remember(verseLexiconPayload) { mutableStateOf<List<AILinkedWord>?>(null) }
@@ -57,7 +52,7 @@ fun VocabularyPopup(
 
     var isTranslating by remember(vocabularyList) { mutableStateOf(true) }
     var versePreviewRef by remember { mutableStateOf<String?>(null) }
-    var navigationStack = remember { mutableStateListOf<LexiconEntry>() }
+    val navigationStack = remember { mutableStateListOf<LexiconEntry>() }
     val scope = rememberCoroutineScope()
     var isFetchingReference by remember { mutableStateOf(false) }
 
@@ -89,11 +84,28 @@ fun VocabularyPopup(
     LaunchedEffect(vocabularyList) {
         isTranslating = true
         try {
-            for (def in vocabularyList) {
-                def.shortDefinition = DeepLApiClient.translateText(def.shortDefinition)
-                def.fullDefinition = def.fullDefinition?.let { DeepLApiClient.translateText(it) }
+            // Collect all texts to translate in one batch
+            val textsToTranslate = mutableListOf<String>()
+            val mapping = mutableListOf<Pair<Int, String>>() // (vocabIndex, "short"|"full")
+
+            for ((i, def) in vocabularyList.withIndex()) {
+                textsToTranslate.add(def.shortDefinition)
+                mapping.add(i to "short")
+                def.fullDefinition?.let {
+                    textsToTranslate.add(it)
+                    mapping.add(i to "full")
+                }
             }
 
+            val translated = DeepLApiClient.translateBatch(textsToTranslate)
+
+            for ((idx, pair) in mapping.withIndex()) {
+                val (vocabIdx, field) = pair
+                when (field) {
+                    "short" -> vocabularyList[vocabIdx].shortDefinition = translated[idx]
+                    "full" -> vocabularyList[vocabIdx].fullDefinition = translated[idx]
+                }
+            }
         } catch (_: Exception) {} finally {
             isTranslating = false
         }
@@ -108,20 +120,34 @@ fun VocabularyPopup(
                 val cleanedPayload = verseLexiconPayload.copy(verse = cleanedVerse)
 
                 val prompt = """
-Task: Map words from a verse to their exact Hebrew/Greek Strong's tags.
-Input: A JSON object containing 'verse' and 'source' (an array mapping source text 'orig' to Strong's 'tags').
-Notation Rules:
-1. Forward slash (/): Separates prefixes/suffixes from the core root word.
-2. Backward slash (\): Separates punctuation. Do NOT treat it as a JSON escape character.
-3. Alignment: Use the forward slash divisions to map independent words to corresponding attached source prefixes.
-Output Requirement:
-Return ONLY a JSON array of objects linking each word to its Strong's tag.
-Omit any source element that does not map directly to a word (ignore unmapped words).
-Format: [{"word": "На", "tags": "H9003"}, {"word": "початку", "tags": "H7225G"}]
+Task: Map each Ukrainian word in 'verse' to exactly one Strong's tag from 'source'.
+
+Input: A JSON object with 'verse' (Ukrainian text) and 'source' (array of Hebrew/Greek entries).
+Each source entry has 'orig' (original text) and 'tags' (Strong's codes).
+
+CRITICAL — Compound words:
+Hebrew often attaches prefixes to root words, separated by "/" in both 'orig' and 'tags'.
+Example: orig="וְ/הָ/אָרֶץ" tags="H9002/H9009/{H0776G}"
+This means THREE parts: וְ=H9002 (conjunction "and"), הָ=H9009 (article "the"), אָרֶץ=H0776G (earth).
+Each part maps to a SEPARATE Ukrainian word:
+- "І" → "H9002" (conjunction)
+- "земля" → "H0776G" (root word)
+- H9009 (article) has no Ukrainian equivalent, so skip it.
+
+Rules:
+1. Every Ukrainian word should get exactly ONE tag (not the full compound tag string).
+2. Split compound tags by "/" and assign each part to the corresponding Ukrainian word.
+3. Conjunctions (і, й, та, а) typically come from prefix H9002 or H9001.
+4. Articles (H9009) usually have no separate Ukrainian word — skip them.
+5. Tags in curly braces like {H0776G} — use only the code inside: H0776G.
+6. Backslash (\) separates punctuation marks — ignore those parts.
+7. If a Ukrainian word has no matching tag, omit it from the output.
+
+Output: Return ONLY a JSON array: [{"word": "І", "tags": "H9002"}, {"word": "земля", "tags": "H0776G"}]
 Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPayload)}
                 """.trimIndent()
                 val response = withContext(Dispatchers.Default) {
-                    GeminiApiClient.generateSingleResponse(prompt)
+                    GroqApiClient.generateResponse(prompt)
                 }
                 val cleanJson = stripJsonMarkdown(response)
                 val result = json.decodeFromString<List<AILinkedWord>>(cleanJson)
@@ -237,7 +263,7 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPaylo
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(onClick = { navigationStack.removeAt(navigationStack.size - 1) }) {
-                                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                                     }
                                     Text(currentEntry.strongCode, style = MaterialTheme.typography.titleMedium)
                                 }
