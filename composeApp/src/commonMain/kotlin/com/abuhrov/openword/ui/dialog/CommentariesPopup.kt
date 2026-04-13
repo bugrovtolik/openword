@@ -112,18 +112,14 @@ fun CommentariesPopup(
                                                         if (translatedText == null) {
                                                             // Need to fetch translation
                                                             translatingIndices = translatingIndices + index
-                                                            scope.launch(Dispatchers.Default) {
+                                                            scope.launch {
                                                                 try {
                                                                     val result = DeepLApiClient.translateText(comment.text)
-                                                                    withContext(Dispatchers.Main) {
-                                                                        translatedTexts = translatedTexts + (index to result)
-                                                                        translatingIndices = translatingIndices - index
-                                                                    }
+                                                                    translatedTexts = translatedTexts + (index to result)
+                                                                    translatingIndices = translatingIndices - index
                                                                 } catch (_: Exception) {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        translatingIndices = translatingIndices - index
-                                                                        showTranslatedFlags = showTranslatedFlags - index
-                                                                    }
+                                                                    translatingIndices = translatingIndices - index
+                                                                    showTranslatedFlags = showTranslatedFlags - index
                                                                 }
                                                             }
                                                         }

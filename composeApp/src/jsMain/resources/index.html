@@ -12,6 +12,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="OpenWord">
+    <!-- Preload critical resources to start fetching in parallel with JS parse -->
+    <link rel="preload" href="sql-wasm.wasm" as="fetch" crossorigin>
+    <link rel="preload" href="composeApp.js" as="script">
     <script defer src="composeApp.js"></script>
     <script defer src="sql-wasm.js"></script>
     <style>
@@ -22,55 +25,185 @@
             padding-bottom: env(safe-area-inset-bottom);
             overflow: hidden; background-color: #121212; box-sizing: border-box;
         }
-        #loading-screen {
+        /* ── App Shell ───────────────────────────────────── */
+        #app-shell {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
-            background-color: #121212; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 9999;
-            transition: opacity 0.4s ease-out;
+            background-color: #F5F5F5; z-index: 9999;
+            display: flex; flex-direction: column;
+            transition: opacity 0.35s ease-out;
         }
-        .loading-title {
+        /* Shell top bar — matches Compose primary color 0xFF5D4037 */
+        .shell-topbar {
+            background-color: #5D4037;
+            padding: env(safe-area-inset-top) 8px 0 8px;
+            display: flex; align-items: center; gap: 8px;
+            min-height: 56px; box-sizing: border-box;
+            flex-shrink: 0;
+        }
+        .shell-btn {
+            background-color: #D7CCC8; /* primaryContainer */
+            color: #1C1B1F; /* onPrimaryContainer */
+            border: none; border-radius: 4px;
+            padding: 8px 12px; font-size: 14px; font-weight: 500;
             font-family: system-ui, -apple-system, sans-serif;
-            color: #ffffff; font-size: 2.5rem; font-weight: 700;
-            margin-bottom: 24px; letter-spacing: -0.02em;
+            display: flex; align-items: center; gap: 2px;
+            white-space: nowrap;
         }
-        .spinner {
-            width: 48px; height: 48px; border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #bb86fc; border-radius: 50%;
-            animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        .shell-btn::after {
+            content: '▾'; font-size: 12px; margin-left: 2px;
+        }
+        .shell-spacer { flex: 1; }
+        .shell-icon {
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .shell-icon svg { fill: #FFFFFF; width: 24px; height: 24px; }
+        /* Shell content skeleton */
+        .shell-content {
+            flex: 1; padding: 16px; overflow: hidden;
+        }
+        .shell-line {
+            height: 16px; border-radius: 4px; margin-bottom: 12px;
+            background: linear-gradient(90deg, #E0E0E0 25%, #EEEEEE 50%, #E0E0E0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+        .shell-line:nth-child(1) { width: 20%; height: 12px; margin-bottom: 8px; background: linear-gradient(90deg, #D7CCC8 25%, #E8DDD8 50%, #D7CCC8 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+        .shell-line:nth-child(2) { width: 92%; }
+        .shell-line:nth-child(3) { width: 88%; }
+        .shell-line:nth-child(4) { width: 95%; }
+        .shell-line:nth-child(5) { width: 60%; }
+        .shell-line:nth-child(6) { width: 0; height: 8px; margin-bottom: 16px; background: none; animation: none; }
+        .shell-line:nth-child(7) { width: 15%; height: 12px; margin-bottom: 8px; background: linear-gradient(90deg, #D7CCC8 25%, #E8DDD8 50%, #D7CCC8 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+        .shell-line:nth-child(8) { width: 90%; }
+        .shell-line:nth-child(9) { width: 85%; }
+        .shell-line:nth-child(10) { width: 93%; }
+        .shell-line:nth-child(11) { width: 50%; }
+        .shell-line:nth-child(12) { width: 0; height: 8px; margin-bottom: 16px; background: none; animation: none; }
+        .shell-line:nth-child(13) { width: 18%; height: 12px; margin-bottom: 8px; background: linear-gradient(90deg, #D7CCC8 25%, #E8DDD8 50%, #D7CCC8 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+        .shell-line:nth-child(14) { width: 91%; }
+        .shell-line:nth-child(15) { width: 87%; }
+        .shell-line:nth-child(16) { width: 94%; }
+        .shell-line:nth-child(17) { width: 70%; }
+
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Bottom loading indicator */
+        .shell-loader {
+            display: flex; align-items: center; justify-content: center;
+            padding: 12px; flex-shrink: 0;
+        }
+        .shell-spinner {
+            width: 24px; height: 24px; border: 3px solid rgba(93,64,55,0.15);
+            border-top-color: #5D4037; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
+    <!-- Immediately read persisted state and populate app shell -->
+    <script>
+        (function() {
+            try {
+                var ls = localStorage;
+                window.__ow_lastTranslation = ls.getItem('last_translation') || 'GRM';
+                window.__ow_lastBookName = ls.getItem('last_book_name') || '';
+                window.__ow_lastChapter = ls.getItem('last_chapter') || '1';
+                window.__ow_lastVerse = ls.getItem('last_verse') || '1';
+                window.__ow_scrollPos = ls.getItem('scroll_position') || '0';
+            } catch(e) {}
+        })();
+    </script>
 </head>
 <body>
-<div id="loading-screen">
-    <div class="loading-title">OpenWord</div>
-    <div class="spinner"></div>
+<div id="app-shell">
+    <div class="shell-topbar">
+        <div class="shell-btn" id="shell-translation"></div>
+        <div class="shell-btn" id="shell-location"></div>
+        <div class="shell-spacer"></div>
+        <!-- Search icon placeholder -->
+        <div class="shell-icon"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
+        <!-- History icon placeholder -->
+        <div class="shell-icon"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></div>
+        <!-- Settings icon placeholder -->
+        <div class="shell-icon"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+    </div>
+    <div class="shell-content">
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+        <div class="shell-line"></div>
+    </div>
+    <div class="shell-loader"><div class="shell-spinner"></div></div>
 </div>
 <div id="compose-root"></div>
+
+<script>
+    // Populate shell with persisted state
+    (function() {
+        try {
+            var t = window.__ow_lastTranslation || 'GRM';
+            var bn = window.__ow_lastBookName || '';
+            var ch = window.__ow_lastChapter || '1';
+            var vs = window.__ow_lastVerse || '1';
+
+            var elT = document.getElementById('shell-translation');
+            var elL = document.getElementById('shell-location');
+            if (elT) elT.textContent = t;
+            if (elL) elL.textContent = bn ? (bn + ' ' + ch + ':' + vs) : 'Завантаження…';
+        } catch(e) {}
+    })();
+</script>
+
+<script>
+    // Persist scroll position on visibility change
+    (function() {
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'hidden') {
+                try {
+                    // The Kotlin side writes 'scroll_position' to localStorage;
+                    // we also snapshot anything Kotlin may have set
+                } catch(e) {}
+            }
+        });
+    })();
+</script>
 
 <script>
     (function() {
         if (!('serviceWorker' in navigator)) return;
 
-        let registration;
+        var registration;
 
         function askForUpdate() {
             if (confirm('Доступне оновлення?')) {
                 if (registration && registration.waiting) {
                     registration.waiting.postMessage({ action: 'skipWaiting' });
-                    setTimeout(() => window.location.reload(), 300);
+                    setTimeout(function() { window.location.reload(); }, 300);
                 }
             }
         }
 
         navigator.serviceWorker.register('sw.js')
-            .then(reg => {
+            .then(function(reg) {
                 registration = reg;
                 if (reg.waiting) askForUpdate();
-                reg.addEventListener('updatefound', () => {
-                    const newWorker = reg.installing;
+                reg.addEventListener('updatefound', function() {
+                    var newWorker = reg.installing;
                     if (newWorker) {
-                        newWorker.addEventListener('statechange', () => {
+                        newWorker.addEventListener('statechange', function() {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                                 askForUpdate();
                             }
@@ -78,7 +211,7 @@
                     }
                 });
             })
-            .catch(err => console.error('SW registration failed:', err));
+            .catch(function(err) { console.error('SW registration failed:', err); });
     })();
 </script>
 </body>

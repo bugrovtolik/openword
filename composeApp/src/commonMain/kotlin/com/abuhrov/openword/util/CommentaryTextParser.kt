@@ -10,6 +10,13 @@ import androidx.compose.ui.text.withStyle
 
 fun parseCommentaryText(text: String): AnnotatedString {
     val textWithoutNotes = text.replace(Regex("<n>.*?</n>\\s*"), "")
+        .replace("&#x27;", "'")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace(Regex("\\s*\\([^)]*\\)"), "")
     val trimmed = textWithoutNotes.trimStart()
 
     if (trimmed.startsWith("{") || trimmed.startsWith("\\")) {

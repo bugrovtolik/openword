@@ -65,34 +65,28 @@ fun AIPopup(verseRef: String, onDismiss: () -> Unit) {
                             messages = messages + ChatMessage("model", "")
                             
                             scope.launch { listState.animateScrollToItem(messages.lastIndex) }
-                            scope.launch(Dispatchers.Default) {
+                            scope.launch {
                                 val apiPrompt = "Контекст:\n$verseRef\nВідповідай коротко і лаконічно одним абзацем: $currentInput"
                                 // Exclude the newly added empty model message and replace last user msg with prompted one
                                 val apiHistory = messages.dropLast(2) + ChatMessage("user", apiPrompt)
                                 
                                 try {
                                     GeminiApiClient.generateChatResponseStream(apiHistory).collect { chunk ->
-                                        withContext(Dispatchers.Main) {
-                                            if (messages.isNotEmpty()) {
-                                                val lastMsg = messages.last()
-                                                messages = messages.dropLast(1) + lastMsg.copy(text = lastMsg.text + chunk)
-                                                scope.launch { listState.animateScrollToItem(messages.lastIndex) }
-                                            }
+                                        if (messages.isNotEmpty()) {
+                                            val lastMsg = messages.last()
+                                            messages = messages.dropLast(1) + lastMsg.copy(text = lastMsg.text + chunk)
+                                            listState.animateScrollToItem(messages.lastIndex)
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    withContext(Dispatchers.Main) {
-                                        if (messages.isNotEmpty()) {
-                                            val lastMsg = messages.last()
-                                            if (lastMsg.text.isEmpty()) {
-                                                messages = messages.dropLast(1) + lastMsg.copy(text = "Помилка: ${e.message}")
-                                            }
+                                    if (messages.isNotEmpty()) {
+                                        val lastMsg = messages.last()
+                                        if (lastMsg.text.isEmpty()) {
+                                            messages = messages.dropLast(1) + lastMsg.copy(text = "Помилка: ${e.message}")
                                         }
                                     }
                                 } finally {
-                                    withContext(Dispatchers.Main) {
-                                        isLoading = false
-                                    }
+                                    isLoading = false
                                 }
                             }
                         }

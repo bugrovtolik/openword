@@ -30,6 +30,7 @@ import com.abuhrov.openword.data.repository.getCommentaryForMarker
 import com.abuhrov.openword.model.Book
 import com.abuhrov.openword.model.CommentarySource
 import com.abuhrov.openword.model.Verse
+import com.abuhrov.openword.ui.dialog.DictionaryPopup
 import com.abuhrov.openword.ui.dialog.MarkerNotePopup
 import com.abuhrov.openword.util.normalizeStrongCode
 import com.abuhrov.openword.util.parseBibleText
@@ -125,16 +126,14 @@ fun BibleReaderScreen(
                                             val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
                                             if (annotations.isNotEmpty()) {
                                                 val word = annotations.first().item
-                                                dictionaryPopupPosition = IntOffset(
-                                                    (headerWindowOffset.x + pos.x).roundToInt(),
-                                                    (headerWindowOffset.y + pos.y).roundToInt() - 300
-                                                )
-                                                scope.launch(Dispatchers.Default) {
+                                                scope.launch {
                                                     val def = DictionaryRepository.findDefinition(word)
-                                                    withContext(Dispatchers.Main) {
-                                                        showDictionaryWord = word
-                                                        dictionaryDefinition = def ?: "Не знайдено у словнику."
-                                                    }
+                                                    dictionaryPopupPosition = IntOffset(
+                                                        (headerWindowOffset.x + pos.x).roundToInt(),
+                                                        (headerWindowOffset.y + pos.y).roundToInt() - 300
+                                                    )
+                                                    showDictionaryWord = word
+                                                    dictionaryDefinition = def ?: "Не знайдено у словнику."
                                                 }
                                             }
                                         }
@@ -192,16 +191,14 @@ fun BibleReaderScreen(
                                                         (textWindowOffset.y + pos.y).roundToInt() - 100
                                                     )
                                                     onVerseSelected(verse.number)
-                                                    scope.launch(Dispatchers.Default) {
-                                                        val def = com.abuhrov.openword.data.repository.DictionaryRepository.findDefinition(word)
-                                                        withContext(Dispatchers.Main) {
-                                                            if (def != null) {
-                                                                showDictionaryWord = word
-                                                                dictionaryDefinition = def
-                                                            } else {
-                                                                showDictionaryWord = word
-                                                                dictionaryDefinition = "Не знайдено у словнику."
-                                                            }
+                                                    scope.launch {
+                                                        val def = DictionaryRepository.findDefinition(word)
+                                                        if (def != null) {
+                                                            showDictionaryWord = word
+                                                            dictionaryDefinition = def
+                                                        } else {
+                                                            showDictionaryWord = word
+                                                            dictionaryDefinition = "Не знайдено у словнику."
                                                         }
                                                     }
                                                     return@detectTapGestures
@@ -210,19 +207,17 @@ fun BibleReaderScreen(
                                                 val annotations = styledText.getStringAnnotations(tag = "COMMENTARY_MARKER", start = offset, end = offset)
                                                 if (annotations.isNotEmpty()) {
                                                     val markerId = annotations.first().item
-                                                    val source = commentarySource
-                                                    if (source != null) {
+                                                    if (commentarySource != null) {
                                                         markerNotePosition = IntOffset(
                                                             (textWindowOffset.x + pos.x).roundToInt(),
                                                             (textWindowOffset.y + pos.y).roundToInt() - 300
                                                         )
-                                                        onVerseSelected(verse.number)
-                                                        scope.launch(Dispatchers.Default) {
+                                                        scope.launch {
                                                             try {
-                                                                val note = getCommentaryForMarker(selectedBook.id, selectedChapter, verse.number, markerId, source)
-                                                                withContext(Dispatchers.Main) { showMarkerNote = note ?: "Примітку не знайдено." }
-                                                            } catch (e: Exception) {
-                                                                withContext(Dispatchers.Main) { showMarkerNote = "Цей переклад не підтримує примітки." }
+                                                                val note = getCommentaryForMarker(selectedBook.id, selectedChapter, verse.number, markerId, commentarySource)
+                                                                showMarkerNote = note ?: "Примітку не знайдено."
+                                                            } catch (_: Exception) {
+                                                                showMarkerNote = "Цей переклад не підтримує примітки."
                                                             }
                                                         }
                                                     }
@@ -303,7 +298,7 @@ fun BibleReaderScreen(
             }
 
             if (showDictionaryWord != null && dictionaryDefinition != null && selectedVerses.isEmpty()) {
-                com.abuhrov.openword.ui.dialog.DictionaryPopup(
+                DictionaryPopup(
                     word = showDictionaryWord!!,
                     definition = dictionaryDefinition!!,
                     offset = dictionaryPopupPosition,

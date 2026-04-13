@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -28,6 +29,7 @@ fun CrossReferencesPopup(
     chapter: Long,
     verse: Long,
     crossReferences: List<CrossReferenceUiItem>,
+    isLoading: Boolean,
     onReferenceClick: (Long, Long, Long) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -59,7 +61,11 @@ fun CrossReferencesPopup(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                if (crossReferences.isEmpty()) {
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (crossReferences.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = "Немає перехресних посилань для цього вірша",

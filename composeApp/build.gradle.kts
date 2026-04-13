@@ -136,10 +136,23 @@ android {
         targetCompatibility = JavaVersion.VERSION_25
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("openword-keystore.jks")
+            keyAlias = "openword"
+            storePassword = "password"
+            keyPassword = "password"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

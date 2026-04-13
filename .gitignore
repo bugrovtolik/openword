@@ -12,3 +12,4 @@ local.properties
 /kotlin-js-store/yarn.lock
 /compile_error.log
 /compile_error_utf8.log
+/composeApp/openword-keystore.jks

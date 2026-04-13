@@ -4,6 +4,7 @@ import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.util.levenshteinDistance
 import com.abuhrov.openword.util.stripTags
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -41,6 +42,8 @@ object SearchIndexer {
             for (book in books) {
                 val bookName = book.shortName.ifEmpty { book.name }
                 for (chapter in 1L..book.chapterCount) {
+                    // Check for cancellation to avoid unnecessary work if translation changed
+                    ensureActive()
                     val verses = bible.getVerses(book.id, chapter)
                     for (verse in verses) {
                         val cleanText = stripTags(verse.text)

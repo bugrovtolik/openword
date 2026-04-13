@@ -32,6 +32,8 @@ object Constants {
         const val NAV_VIEW_MODE = "nav_view_mode"
         const val SEARCH_STRICTNESS = "search_strictness"
         const val HISTORY = "history"
+        const val SCROLL_POSITION = "scroll_position"
+        const val LAST_BOOK_NAME = "last_book_name"
     }
 
     // --- Settings Defaults ---

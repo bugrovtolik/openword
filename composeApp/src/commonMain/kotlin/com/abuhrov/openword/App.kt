@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App() {
+fun App(initialScrollIndex: Int = 0) {
     var fontSizeScale by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.FONT_SCALE, Constants.DEFAULT_FONT_SCALE).toFloat()) }
     var autoTranslate by remember { mutableStateOf(Settings.getString(Constants.SettingsKeys.AUTO_TRANSLATE, Constants.DEFAULT_AUTO_TRANSLATE).toBoolean()) }
     var navViewMode by remember { mutableStateOf(NavigationViewMode.valueOf(Settings.getString(Constants.SettingsKeys.NAV_VIEW_MODE, Constants.DEFAULT_NAV_VIEW_MODE))) }
@@ -72,6 +72,7 @@ fun App() {
         var isCommentariesLoading by remember { mutableStateOf(false) }
         var showCrossReferencesForVerseNumber by remember { mutableStateOf<Long?>(null) }
         var currentCrossReferenceList by remember { mutableStateOf<List<CrossReferenceUiItem>>(emptyList()) }
+        var isCrossReferencesLoading by remember { mutableStateOf(false) }
         var showCompareTranslationsForVerses by remember { mutableStateOf<List<Verse>?>(null) }
         var currentCompareTranslationsList by remember { mutableStateOf<List<CompareTranslationsUiItem>>(emptyList()) }
         var compareRefreshTrigger by remember { mutableStateOf(0) }
@@ -109,9 +110,17 @@ fun App() {
             Settings.setString(Constants.SettingsKeys.HISTORY, newList.joinToString(",") { "${it.first}:${it.second}:${it.third}" })
         }
 
-        val listState = rememberLazyListState()
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScrollIndex)
         val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
+
+        // Track scroll position and persist it for cold-start recovery
+        LaunchedEffect(listState) {
+            snapshotFlow { listState.firstVisibleItemIndex }
+                .collect { index ->
+                    Settings.setString(Constants.SettingsKeys.SCROLL_POSITION, index.toString())
+                }
+        }
 
         val clearSelection = { selectedVerses = emptySet() }
 
@@ -158,6 +167,7 @@ fun App() {
             if (!isLoading && selectedBook != null) {
                 Settings.setString(Constants.SettingsKeys.LAST_TRANSLATION, selectedTranslation.id)
                 Settings.setLong(Constants.SettingsKeys.LAST_BOOK, selectedBook!!.id)
+                Settings.setString(Constants.SettingsKeys.LAST_BOOK_NAME, selectedBook!!.shortName)
                 Settings.setLong(Constants.SettingsKeys.LAST_CHAPTER, selectedChapter)
                 Settings.setLong(Constants.SettingsKeys.LAST_VERSE, selectedVerse)
                 Settings.setLong("book_${selectedBook!!.id}_chapter", selectedChapter)
@@ -203,7 +213,7 @@ fun App() {
 
         LaunchedEffect(bible, selectedBook, selectedChapter) {
             if (bible != null && selectedBook != null) {
-                val verses = withContext(Dispatchers.Default) { bible!!.getVerses(selectedBook!!.id, selectedChapter) }
+                val verses = bible!!.getVerses(selectedBook!!.id, selectedChapter)
                 currentVerses = verses
             } else { currentVerses = emptyList() }
         }
@@ -253,7 +263,7 @@ fun App() {
             if (showCommentariesForVerse != null && selectedBook != null) {
                 isCommentariesLoading = true
                 currentCommentariesList = try {
-                    withContext(Dispatchers.Default) { getCommentariesForVerse(showCommentariesForVerse!!) }
+                    getCommentariesForVerse(showCommentariesForVerse!!)
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -265,21 +275,18 @@ fun App() {
         }
 
         LaunchedEffect(showCrossReferencesForVerseNumber) {
-            currentCrossReferenceList = if (showCrossReferencesForVerseNumber != null && bible != null) {
-                try {
-                    val rawRefs = withContext(Dispatchers.Default) {
-                        CrossReferenceRepository.getCrossReferences(
-                            book = selectedBook!!.id,
-                            chapter = selectedChapter,
-                            verse = showCrossReferencesForVerseNumber!!
-                        )
-                    }
+            if (showCrossReferencesForVerseNumber != null && bible != null) {
+                isCrossReferencesLoading = true
+                currentCrossReferenceList = try {
+                    val rawRefs = CrossReferenceRepository.getCrossReferences(
+                        book = selectedBook!!.id,
+                        chapter = selectedChapter,
+                        verse = showCrossReferencesForVerseNumber!!
+                    )
                     val uiItems = rawRefs.mapNotNull { ref ->
                         val targetBook = bible!!.books.find { it.id == ref.bookTo }
                         if (targetBook != null) {
-                            val chunkVerses = withContext(Dispatchers.Default) {
-                                bible!!.getVerses(targetBook.id, ref.chapterTo)
-                            }
+                            val chunkVerses = bible!!.getVerses(targetBook.id, ref.chapterTo)
                             // Form single string for reference text
                             val startIdx = (ref.verseToStart - 1).toInt().coerceAtLeast(0)
                             val endIdx = ((ref.verseToEnd ?: ref.verseToStart) - 1).toInt().coerceAtMost(chunkVerses.lastIndex).coerceAtLeast(startIdx)
@@ -299,7 +306,11 @@ fun App() {
                 } catch (_: Exception) {
                     emptyList()
                 }
-            } else emptyList()
+                isCrossReferencesLoading = false
+            } else {
+                currentCrossReferenceList = emptyList()
+                isCrossReferencesLoading = false
+            }
         }
 
         LaunchedEffect(showCompareTranslationsForVerses, compareRefreshTrigger) {
@@ -440,6 +451,7 @@ fun App() {
                 chapter = selectedChapter,
                 verse = showCrossReferencesForVerseNumber!!,
                 crossReferences = currentCrossReferenceList,
+                isLoading = isCrossReferencesLoading,
                 onReferenceClick = { targetBookId, targetChapter, targetVerse ->
                     val newBook = bible?.books?.find { it.id == targetBookId }
                     if (newBook != null) {
