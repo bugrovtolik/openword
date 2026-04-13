@@ -1,9 +1,23 @@
-const CACHE_NAME = 'openword-1775339386735';
-const ASSETS = [
+const CACHE_NAME = 'openword-1776043578398';
+const CRITICAL_ASSETS = [
   "",
   "236.js",
   "bccfa839aa4b38489c76.wasm",
   "composeApp.js",
+  "favicon.ico",
+  "icons/icon-192.png",
+  "icons/icon-32.png",
+  "icons/icon-512.png",
+  "icons/icon-dark-512.png",
+  "icons/icon-mono.png",
+  "index.html",
+  "manifest.json",
+  "skiko.wasm",
+  "sql-wasm.js",
+  "sql-wasm.wasm",
+  "sw.template.js"
+];
+const LAZY_ASSETS = [
   "composeResources/openword.composeapp.generated.resources/files/commentaries/CBSC.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/commentaries/CUV.commentaries.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/commentaries/GRM.commentaries.SQLite3",
@@ -31,31 +45,25 @@ const ASSETS = [
   "composeResources/openword.composeapp.generated.resources/files/vocabulary/lexicon.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/vocabulary/wordsDefinitions.SQLite3",
   "composeResources/openword.composeapp.generated.resources/font/OpenSans.ttf",
-  "favicon.ico",
-  "icons/icon-192.png",
-  "icons/icon-32.png",
-  "icons/icon-512.png",
-  "icons/icon-dark-512.png",
-  "icons/icon-mono.png",
-  "index.html",
   "js-reexport-symbols.mjs",
-  "manifest.json",
   "skiko.mjs",
-  "skiko.wasm",
-  "skikod8.mjs",
-  "sql-wasm.js",
-  "sql-wasm.wasm",
-  "sw.template.js"
+  "skikod8.mjs"
 ];
 
+// Install: only pre-cache critical assets (HTML, JS, WASM, manifest, icons)
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => Promise.all(ASSETS.map(url => cache.add(url).catch(err => console.error(`Failed to cache ${url}:`, err)))))
+            .then(cache => Promise.all(
+                CRITICAL_ASSETS.map(url =>
+                    cache.add(url).catch(err => console.error(`Failed to cache ${url}:`, err))
+                )
+            ))
             .catch(err => console.error('Fatal error during installation:', err))
     );
 });
 
+// Activate: clean old caches, claim clients immediately
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         Promise.all([
@@ -67,12 +75,20 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Fetch: cache-first for all, runtime-cache lazy assets on first access
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     event.respondWith(
-        caches.match(event.request)
-            .then(cached => cached || fetch(event.request))
-            .catch(() => caches.match(event.request))
+        caches.match(event.request).then(cached => {
+            if (cached) return cached;
+            return fetch(event.request).then(response => {
+                if (response && response.status === 200 && response.type === 'basic') {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                }
+                return response;
+            });
+        }).catch(() => caches.match(event.request))
     );
 });
 
