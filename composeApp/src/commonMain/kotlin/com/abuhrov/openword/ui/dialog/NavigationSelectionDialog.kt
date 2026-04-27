@@ -50,7 +50,7 @@ fun NavigationSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, dismissOnBackPress = false),
         modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.9f),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {

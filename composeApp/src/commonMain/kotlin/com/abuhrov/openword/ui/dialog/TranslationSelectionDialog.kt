@@ -19,6 +19,7 @@ fun TranslationSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false, dismissOnBackPress = false),
         title = { Text("Оберіть переклад") },
         text = {
             Column {

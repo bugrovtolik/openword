@@ -58,7 +58,7 @@ object GeminiApiClient {
     /**
      * Streaming chat request — reads SSE chunks from the proxy.
      */
-    suspend fun generateChatResponseStream(history: List<ChatMessage>): Flow<String> = flow {
+    fun generateChatResponseStream(history: List<ChatMessage>): Flow<String> = flow {
         client.preparePost(Constants.GEMINI_PROXY_URL) {
             contentType(ContentType.Application.Json)
             setBody(ProxyRequest(history = history, stream = true))
@@ -66,22 +66,15 @@ object GeminiApiClient {
             val channel = response.bodyAsChannel()
             while (!channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: break
-                if (line.startsWith("data: ")) {
-                    val data = line.substring(6).trim()
-                    if (data == "[DONE]") continue
-                    if (data.isBlank()) continue
-                    try {
-                        val jsonElement = Json.parseToJsonElement(data)
-                        val textChunk = jsonElement.jsonObject["candidates"]?.jsonArray?.get(0)
-                            ?.jsonObject?.get("content")?.jsonObject?.get("parts")?.jsonArray?.get(0)
-                            ?.jsonObject?.get("text")?.jsonPrimitive?.content
-                        
-                        if (textChunk != null) {
-                            emit(textChunk)
-                        }
-                    } catch (e: Exception) {
-                        // Ignore parse errors on individual chunks
+                try {
+                    val jsonElement = Json.parseToJsonElement(line)
+                    val textChunk = jsonElement.jsonObject["text"]?.jsonPrimitive?.content
+
+                    if (textChunk != null) {
+                        emit(textChunk)
                     }
+                } catch (_: Exception) {
+                    // Ignore parse errors on individual chunks
                 }
             }
         }

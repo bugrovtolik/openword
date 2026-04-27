@@ -36,7 +36,8 @@ fun DictionaryPopup(
 ) {
     Popup(
         offset = offset,
-        onDismissRequest = onDismiss
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.PopupProperties(dismissOnClickOutside = false, dismissOnBackPress = false)
     ) {
         Surface(
             modifier = Modifier

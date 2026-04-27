@@ -14,7 +14,7 @@ fun Modifier.safeDismissClick(onDismiss: () -> Unit): Modifier = this.pointerInp
         // Ignore touches in the bottom 48dp to avoid accidental dismissal during iOS swipe-up
         val threshold = 48.dp.toPx()
         if (offset.y < size.height - threshold) {
-            onDismiss()
+            // Intentionally blank to consume background clicks without dismissing
         }
     }
 }

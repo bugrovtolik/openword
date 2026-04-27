@@ -13,6 +13,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
@@ -46,6 +49,15 @@ fun BibleTopBar(
     val isSelectionMode = selectedVerses.isNotEmpty()
     val isSingleSelection = selectedVerses.size == 1
     var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchHasFocus by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) {
+            focusRequester.requestFocus()
+        }
+    }
+    
     var searchQuery by remember { mutableStateOf("") }
     var searchErrorTrigger by remember { mutableStateOf(false) }
 
@@ -102,10 +114,12 @@ fun BibleTopBar(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TopBarButton(selectedTranslation.id) { onTranslationClick() }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val locationLabel = if (selectedBook != null) "${selectedBook.shortName} $selectedChapter:$selectedVerse" else "Оберіть книгу"
-                    TopBarButton(locationLabel) { onNavigationClick() }
+                    if (!isSearchExpanded) {
+                        TopBarButton(selectedTranslation.id) { onTranslationClick() }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val locationLabel = if (selectedBook != null) "${selectedBook.shortName} $selectedChapter:$selectedVerse" else "Оберіть книгу"
+                        TopBarButton(locationLabel) { onNavigationClick() }
+                    }
                     
                     if (isSearchExpanded) {
                         androidx.compose.runtime.LaunchedEffect(searchErrorTrigger) {
@@ -125,7 +139,16 @@ fun BibleTopBar(
                         androidx.compose.foundation.text.BasicTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            modifier = Modifier.weight(1f).padding(start = 8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        searchHasFocus = true
+                                    } else if (searchHasFocus && isSearchExpanded) {
+                                        isSearchExpanded = false
+                                    }
+                                },
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 color = textColor,
                                 fontSize = MaterialTheme.typography.bodyLarge.fontSize
@@ -177,17 +200,19 @@ fun BibleTopBar(
                         }) {
                             Icon(Icons.Default.Search, "Знайти", tint = MaterialTheme.colorScheme.onPrimary)
                         }
-                        IconButton(onClick = onHistoryClick) {
-                            Icon(Icons.Default.History, "Історія", tint = MaterialTheme.colorScheme.onPrimary)
-                        }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = { isSearchExpanded = true; searchQuery = "" }) {
+                        IconButton(onClick = { 
+                            isSearchExpanded = true 
+                            searchQuery = "" 
+                            searchHasFocus = false 
+                        }) {
                             Icon(Icons.Default.Search, "Пошук", tint = MaterialTheme.colorScheme.onPrimary)
                         }
-                        IconButton(onClick = onHistoryClick) {
-                            Icon(Icons.Default.History, "Історія", tint = MaterialTheme.colorScheme.onPrimary)
-                        }
+                    }
+                    
+                    IconButton(onClick = onHistoryClick) {
+                        Icon(Icons.Default.History, "Історія", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "Налаштування", tint = MaterialTheme.colorScheme.onPrimary)

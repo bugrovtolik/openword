@@ -10,6 +10,12 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import com.abuhrov.openword.data.config.availableTranslations
 import com.abuhrov.openword.data.local.clearAllLocalData
 import com.abuhrov.openword.data.local.prepareDatabaseFile
@@ -19,6 +25,7 @@ import com.abuhrov.openword.data.platform.loadAppFont
 import com.abuhrov.openword.data.repository.*
 import com.abuhrov.openword.domain.search.SearchIndexer
 import com.abuhrov.openword.model.*
+import com.abuhrov.openword.model.ChapterItem
 import com.abuhrov.openword.ui.dialog.*
 import com.abuhrov.openword.ui.dialog.HistoryDialog
 import com.abuhrov.openword.ui.dialog.HistoryItem
@@ -63,6 +70,11 @@ fun App(initialScrollIndex: Int = 0) {
         var selectedVerses by remember { mutableStateOf(setOf<Verse>()) }
 
         var currentVerses by remember { mutableStateOf<List<Verse>>(emptyList()) }
+        var chapterItems by remember { mutableStateOf<List<ChapterItem>>(emptyList()) }
+        var lastLoadedChapter by remember { mutableStateOf(0L) }
+        var firstLoadedChapter by remember { mutableStateOf(0L) }
+        var navigationVersion by remember { mutableStateOf(0) }
+        var isScrollUpdate by remember { mutableStateOf(false) }
 
         var showVocabularyForVerse by remember { mutableStateOf<Verse?>(null) }
         var currentVocabularyList by remember { mutableStateOf<List<LexiconEntry>>(emptyList()) }
@@ -113,6 +125,7 @@ fun App(initialScrollIndex: Int = 0) {
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScrollIndex)
         val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
+        val focusManager = LocalFocusManager.current
 
         // Track scroll position and persist it for cold-start recovery
         LaunchedEffect(listState) {
@@ -138,7 +151,6 @@ fun App(initialScrollIndex: Int = 0) {
                     }
                 }
                 clearSelection()
-                scope.launch { listState.scrollToItem(0) }
             }
         }
 
@@ -148,7 +160,6 @@ fun App(initialScrollIndex: Int = 0) {
                     selectedChapter -= 1
                     selectedVerse = 1L
                     clearSelection()
-                    scope.launch { listState.scrollToItem(0) }
                 } else {
                     val currentIndex = bible!!.books.indexOfFirst { it.id == selectedBook!!.id }
                     if (currentIndex > 0) {
@@ -157,7 +168,6 @@ fun App(initialScrollIndex: Int = 0) {
                         selectedChapter = prevBook.chapterCount
                         selectedVerse = 1L
                         clearSelection()
-                        scope.launch { listState.scrollToItem(0) }
                     }
                 }
             }
@@ -212,27 +222,147 @@ fun App(initialScrollIndex: Int = 0) {
         }
 
         LaunchedEffect(bible, selectedBook, selectedChapter) {
+            if (isScrollUpdate) {
+                isScrollUpdate = false
+                return@LaunchedEffect
+            }
             if (bible != null && selectedBook != null) {
-                val verses = bible!!.getVerses(selectedBook!!.id, selectedChapter)
-                currentVerses = verses
-            } else { currentVerses = emptyList() }
+                val startChapter = maxOf(selectedChapter - 2, 1L)
+                val endChapter = minOf(selectedChapter + 2, selectedBook!!.chapterCount)
+                val items = mutableListOf<ChapterItem>()
+                for (ch in startChapter..endChapter) {
+                    items.add(ChapterItem.Header(selectedBook!!.shortName, ch))
+                    val verses = bible!!.getVerses(selectedBook!!.id, ch)
+                    for (v in verses) {
+                        items.add(ChapterItem.VerseItem(v, ch))
+                    }
+                }
+                chapterItems = items
+                lastLoadedChapter = endChapter
+                firstLoadedChapter = startChapter
+                currentVerses = items
+                    .filterIsInstance<ChapterItem.VerseItem>()
+                    .filter { it.chapter == selectedChapter }
+                    .map { it.verse }
+                navigationVersion++
+            } else {
+                chapterItems = emptyList()
+                currentVerses = emptyList()
+                lastLoadedChapter = 0L
+                firstLoadedChapter = 0L
+            }
         }
 
-        LaunchedEffect(currentVerses, selectedVerse) {
-            if (currentVerses.isNotEmpty()) {
+        // Scroll to the target verse only on explicit navigation (not on prefetch or scroll-driven changes)
+        LaunchedEffect(navigationVersion) {
+            if (chapterItems.isNotEmpty()) {
+                // Check if the items actually contain the target chapter before trying to scroll.
+                // If not, the data loader hasn't finished yet, and it will re-trigger this block once it does.
+                val hasTargetChapter = chapterItems.any { it is ChapterItem.Header && it.chapter == selectedChapter }
+                if (!hasTargetChapter) return@LaunchedEffect
+
+                val headerIndex = chapterItems.indexOfFirst {
+                    it is ChapterItem.Header && it.chapter == selectedChapter
+                }
+
                 if (selectedVerse <= 1L) {
-                    listState.scrollToItem(0)
+                    listState.scrollToItem(headerIndex)
                 } else {
-                    val indexInList = currentVerses.indexOfFirst { it.number == selectedVerse }
-                    val targetIndex = if (indexInList != -1) {
-                        indexInList + 1
-                    } else {
-                        val approx = currentVerses.indexOfFirst { it.number > selectedVerse }
-                        if (approx != -1 && approx > 0) approx else 1
+                    val targetIndex = chapterItems.indexOfFirst {
+                        it is ChapterItem.VerseItem && it.chapter == selectedChapter && it.verse.number == selectedVerse
                     }
-                    listState.scrollToItem(targetIndex)
+                    if (targetIndex != -1) {
+                        listState.scrollToItem(targetIndex)
+                    } else {
+                        val approx = chapterItems.indexOfFirst {
+                            it is ChapterItem.VerseItem && it.chapter == selectedChapter && it.verse.number > selectedVerse
+                        }
+                        if (approx != -1) listState.scrollToItem(approx) else listState.scrollToItem(headerIndex)
+                    }
                 }
             }
+        }
+
+        // Prefetch chapters as user scrolls near the edges of loaded content
+        LaunchedEffect(listState) {
+            snapshotFlow { listState.firstVisibleItemIndex }
+                .collect { firstVisibleIndex ->
+                    if (chapterItems.isEmpty() || bible == null || selectedBook == null) return@collect
+                    val item = chapterItems.getOrNull(firstVisibleIndex) ?: return@collect
+                    val visibleChapter = when (item) {
+                        is ChapterItem.Header -> item.chapter
+                        is ChapterItem.VerseItem -> item.chapter
+                    }
+                    // Forward: when user reaches within 1 chapter of the last loaded, append 3 more
+                    if (visibleChapter >= lastLoadedChapter - 1 && lastLoadedChapter < selectedBook!!.chapterCount) {
+                        val startCh = lastLoadedChapter + 1
+                        val endCh = minOf(lastLoadedChapter + 3, selectedBook!!.chapterCount)
+                        val newItems = mutableListOf<ChapterItem>()
+                        for (ch in startCh..endCh) {
+                            newItems.add(ChapterItem.Header(selectedBook!!.shortName, ch))
+                            val verses = bible!!.getVerses(selectedBook!!.id, ch)
+                            for (v in verses) {
+                                newItems.add(ChapterItem.VerseItem(v, ch))
+                            }
+                        }
+                        chapterItems = chapterItems + newItems
+                        lastLoadedChapter = endCh
+                    }
+                    // Backward: when user scrolls up near the first loaded chapter, prepend 3 more
+                    if (visibleChapter <= firstLoadedChapter + 1 && firstLoadedChapter > 1L) {
+                        val endCh = firstLoadedChapter - 1
+                        val startCh = maxOf(endCh - 2, 1L)
+                        val newItems = mutableListOf<ChapterItem>()
+                        for (ch in startCh..endCh) {
+                            newItems.add(ChapterItem.Header(selectedBook!!.shortName, ch))
+                            val verses = bible!!.getVerses(selectedBook!!.id, ch)
+                            for (v in verses) {
+                                newItems.add(ChapterItem.VerseItem(v, ch))
+                            }
+                        }
+                        val prependCount = newItems.size
+                        chapterItems = newItems + chapterItems
+                        firstLoadedChapter = startCh
+                        // Adjust scroll position to compensate for prepended items
+                        listState.scrollToItem(
+                            listState.firstVisibleItemIndex + prependCount,
+                            listState.firstVisibleItemScrollOffset
+                        )
+                    }
+                }
+        }
+
+        // Detect scroll stop and update navigation title with the currently visible chapter and verse
+        LaunchedEffect(Unit) {
+            snapshotFlow { listState.isScrollInProgress }
+                .collect { scrolling ->
+                    if (!scrolling && chapterItems.isNotEmpty()) {
+                        val firstVisibleIndex = listState.firstVisibleItemIndex.coerceIn(0, chapterItems.lastIndex)
+                        // Find the first visible VerseItem at or after the first visible index
+                        var visibleChapter = selectedChapter
+                        var visibleVerse = selectedVerse
+                        for (i in firstVisibleIndex..chapterItems.lastIndex) {
+                            val item = chapterItems[i]
+                            if (item is ChapterItem.VerseItem) {
+                                visibleChapter = item.chapter
+                                visibleVerse = item.verse.number
+                                break
+                            } else if (item is ChapterItem.Header) {
+                                visibleChapter = item.chapter
+                            }
+                        }
+                        val chapterChanged = visibleChapter != selectedChapter
+                        if (chapterChanged) {
+                            isScrollUpdate = true
+                            selectedChapter = visibleChapter
+                            currentVerses = chapterItems
+                                .filterIsInstance<ChapterItem.VerseItem>()
+                                .filter { it.chapter == visibleChapter }
+                                .map { it.verse }
+                        }
+                        selectedVerse = visibleVerse
+                    }
+                }
         }
 
         LaunchedEffect(showVocabularyForVerse) {
@@ -400,14 +530,28 @@ fun App(initialScrollIndex: Int = 0) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             contentWindowInsets = WindowInsets.safeDrawing
         ) { padding ->
-            BibleReaderScreen(
-                padding = padding,
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.any { it.pressed }) {
+                                    focusManager.clearFocus()
+                                }
+                            }
+                        }
+                    }
+            ) {
+                BibleReaderScreen(
+                    padding = padding,
                 isLoading = isLoading,
                 loadError = loadError,
                 bible = bible,
                 selectedBook = selectedBook,
                 selectedChapter = selectedChapter,
-                currentVerses = currentVerses,
+                chapterItems = chapterItems,
                 selectedVerses = selectedVerses,
                 fontSizeScale = fontSizeScale,
                 commentarySource = selectedTranslation.commentarySource,
@@ -428,6 +572,7 @@ fun App(initialScrollIndex: Int = 0) {
                 },
                 onDoubleTapStrong = { verse, code -> clearSelection(); pendingStrongCode = code; showVocabularyForVerse = verse }
             )
+            }
         }
 
         if (showVocabularyForVerse != null) {
@@ -518,7 +663,7 @@ fun App(initialScrollIndex: Int = 0) {
                     selectedVerse = verse
                     if (selectedBook != null) addToHistory(selectedBook!!.id, selectedChapter, verse)
                     showNavSelection = false
-                    scope.launch { listState.scrollToItem(verse.toInt()) }
+                    navigationVersion++
                 },
                 onDismiss = { showNavSelection = false }
             )

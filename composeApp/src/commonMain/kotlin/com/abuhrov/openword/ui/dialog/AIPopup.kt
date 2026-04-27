@@ -26,11 +26,20 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AIPopup(verseRef: String, onDismiss: () -> Unit) {
-    var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
+    var messages by remember { mutableStateOf(com.abuhrov.openword.util.AIChatHistoryManager.getMessagesWithTTL()) }
+    LaunchedEffect(messages) {
+        com.abuhrov.openword.util.AIChatHistoryManager.updateMessages(messages)
+    }
     var inputText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        if (messages.isNotEmpty()) {
+            listState.scrollToItem(messages.lastIndex)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).safeDismissClick { onDismiss() }, contentAlignment = Alignment.Center) {
         Surface(modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.8f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 8.dp) {

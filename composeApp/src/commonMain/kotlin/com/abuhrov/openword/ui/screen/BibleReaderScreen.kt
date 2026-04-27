@@ -6,7 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +28,7 @@ import com.abuhrov.openword.data.repository.Bible
 import com.abuhrov.openword.data.repository.DictionaryRepository
 import com.abuhrov.openword.data.repository.getCommentaryForMarker
 import com.abuhrov.openword.model.Book
+import com.abuhrov.openword.model.ChapterItem
 import com.abuhrov.openword.model.CommentarySource
 import com.abuhrov.openword.model.Verse
 import com.abuhrov.openword.ui.dialog.DictionaryPopup
@@ -48,7 +49,7 @@ fun BibleReaderScreen(
     bible: Bible?,
     selectedBook: Book?,
     selectedChapter: Long,
-    currentVerses: List<Verse>,
+    chapterItems: List<ChapterItem>,
     selectedVerses: Set<Verse>,
     fontSizeScale: Float,
     commentarySource: CommentarySource?,
@@ -91,160 +92,169 @@ fun BibleReaderScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 60.dp)
             ) {
-                item {
-                    val hasDictRef = selectedBook.name.endsWith("*") && DictionaryRepository.hasDefinitionSync(selectedBook.name)
-                    val headerText = remember(selectedBook.name, selectedChapter, hasDictRef) {
-                        buildAnnotatedString {
-                            if (hasDictRef) {
-                                pushStringAnnotation(tag = "DICTIONARY_WORD", annotation = selectedBook.name)
-                                withStyle(
-                                    SpanStyle(textDecoration = TextDecoration.Underline)
-                                ) {
-                                    append(selectedBook.name)
-                                }
-                                pop()
-                            } else {
-                                append(selectedBook.name)
-                            }
-                            append(" $selectedChapter")
-                        }
+                itemsIndexed(chapterItems, key = { index, item ->
+                    when (item) {
+                        is ChapterItem.Header -> "header_${item.chapter}"
+                        is ChapterItem.VerseItem -> "verse_${item.chapter}_${item.verse.number}"
                     }
-                    var headerLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-                    var headerWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-                    Text(
-                        text = headerText,
-                        style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                            .onGloballyPositioned { coords ->
-                                headerWindowOffset = coords.positionInWindow()
-                            }
-                            .pointerInput(hasDictRef) {
-                                if (hasDictRef) {
-                                    detectTapGestures(onTap = { pos ->
-                                        headerLayoutResult?.let { layout ->
-                                            val offset = layout.getOffsetForPosition(pos)
-                                            val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
-                                            if (annotations.isNotEmpty()) {
-                                                val word = annotations.first().item
-                                                scope.launch {
-                                                    val def = DictionaryRepository.findDefinition(word)
-                                                    dictionaryPopupPosition = IntOffset(
-                                                        (headerWindowOffset.x + pos.x).roundToInt(),
-                                                        (headerWindowOffset.y + pos.y).roundToInt() - 300
-                                                    )
-                                                    showDictionaryWord = word
-                                                    dictionaryDefinition = def ?: "Не знайдено у словнику."
-                                                }
-                                            }
+                }) { _, item ->
+                    when (item) {
+                        is ChapterItem.Header -> {
+                            val hasDictRef = selectedBook.name.endsWith("*") && DictionaryRepository.hasDefinitionSync(selectedBook.name)
+                            val headerText = remember(selectedBook.name, item.chapter, hasDictRef) {
+                                buildAnnotatedString {
+                                    if (hasDictRef) {
+                                        pushStringAnnotation(tag = "DICTIONARY_WORD", annotation = selectedBook.name)
+                                        withStyle(
+                                            SpanStyle(textDecoration = TextDecoration.Underline)
+                                        ) {
+                                            append(selectedBook.name)
                                         }
-                                    })
+                                        pop()
+                                    } else {
+                                        append(selectedBook.name)
+                                    }
+                                    append(" ${item.chapter}")
                                 }
-                            },
-                        onTextLayout = { headerLayoutResult = it },
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                items(currentVerses) { verse ->
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        val mergeRegex = remember { Regex("<n>(\\d+-\\d+)</n>") }
-                        val match = mergeRegex.find(verse.text)
-
-                        val displayLabel = match?.groupValues?.get(1) ?: verse.number.toString()
-
-                        val rawStyledText = "$displayLabel  ${verse.text}"
-                        val styledText = remember(rawStyledText) { parseBibleText(rawStyledText) }
-                        var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-                        var textWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-
-                        val isSelected = verse in selectedVerses
-
-                        Text(
-                            text = styledText,
-                            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp.times(fontSizeScale)),
-                            onTextLayout = { textLayoutResult = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 4.dp)
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                    else Color.Transparent,
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .onGloballyPositioned { coords ->
-                                    textWindowOffset = coords.positionInWindow()
-                                }
-                                .pointerInput(verse, selectedVerses.isNotEmpty()) {
-                                    detectTapGestures(
-                                        onTap = { pos ->
-                                            if (selectedVerses.isNotEmpty()) {
-                                                onVerseTapped(verse)
-                                                return@detectTapGestures
-                                            }
-                                            textLayoutResult?.let { layoutResult ->
-                                                val offset = layoutResult.getOffsetForPosition(pos)
-                                                val dictAnnotations = styledText.getStringAnnotations(tag = "DICTIONARY_WORD", start = offset, end = offset)
-                                                if (dictAnnotations.isNotEmpty()) {
-                                                    val word = dictAnnotations.first().item
-                                                    dictionaryPopupPosition = IntOffset(
-                                                        (textWindowOffset.x + pos.x).roundToInt(),
-                                                        (textWindowOffset.y + pos.y).roundToInt() - 100
-                                                    )
-                                                    onVerseSelected(verse.number)
-                                                    scope.launch {
-                                                        val def = DictionaryRepository.findDefinition(word)
-                                                        if (def != null) {
+                            }
+                            var headerLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                            var headerWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                            Text(
+                                text = headerText,
+                                style = MaterialTheme.typography.headlineMedium,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                                    .onGloballyPositioned { coords ->
+                                        headerWindowOffset = coords.positionInWindow()
+                                    }
+                                    .pointerInput(hasDictRef) {
+                                        if (hasDictRef) {
+                                            detectTapGestures(onTap = { pos ->
+                                                headerLayoutResult?.let { layout ->
+                                                    val offset = layout.getOffsetForPosition(pos)
+                                                    val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
+                                                    if (annotations.isNotEmpty()) {
+                                                        val word = annotations.first().item
+                                                        scope.launch {
+                                                            val def = DictionaryRepository.findDefinition(word)
+                                                            dictionaryPopupPosition = IntOffset(
+                                                                (headerWindowOffset.x + pos.x).roundToInt(),
+                                                                (headerWindowOffset.y + pos.y).roundToInt() - 300
+                                                            )
                                                             showDictionaryWord = word
-                                                            dictionaryDefinition = def
-                                                        } else {
-                                                            showDictionaryWord = word
-                                                            dictionaryDefinition = "Не знайдено у словнику."
+                                                            dictionaryDefinition = def ?: "Не знайдено у словнику."
                                                         }
                                                     }
-                                                    return@detectTapGestures
                                                 }
+                                            })
+                                        }
+                                    },
+                                onTextLayout = { headerLayoutResult = it },
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        is ChapterItem.VerseItem -> {
+                            val verse = item.verse
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                val mergeRegex = remember { Regex("<n>(\\d+-\\d+)</n>") }
+                                val match = mergeRegex.find(verse.text)
 
-                                                val annotations = styledText.getStringAnnotations(tag = "COMMENTARY_MARKER", start = offset, end = offset)
-                                                if (annotations.isNotEmpty()) {
-                                                    val markerId = annotations.first().item
-                                                    if (commentarySource != null) {
-                                                        markerNotePosition = IntOffset(
-                                                            (textWindowOffset.x + pos.x).roundToInt(),
-                                                            (textWindowOffset.y + pos.y).roundToInt() - 300
-                                                        )
-                                                        scope.launch {
-                                                            try {
-                                                                val note = getCommentaryForMarker(selectedBook.id, selectedChapter, verse.number, markerId, commentarySource)
-                                                                showMarkerNote = note ?: "Примітку не знайдено."
-                                                            } catch (_: Exception) {
-                                                                showMarkerNote = "Цей переклад не підтримує примітки."
+                                val displayLabel = match?.groupValues?.get(1) ?: verse.number.toString()
+
+                                val rawStyledText = "$displayLabel  ${verse.text}"
+                                val styledText = remember(rawStyledText) { parseBibleText(rawStyledText) }
+                                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                                var textWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+                                val isSelected = verse in selectedVerses
+
+                                Text(
+                                    text = styledText,
+                                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp.times(fontSizeScale)),
+                                    onTextLayout = { textLayoutResult = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp, horizontal = 4.dp)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                            else Color.Transparent,
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                        .onGloballyPositioned { coords ->
+                                            textWindowOffset = coords.positionInWindow()
+                                        }
+                                        .pointerInput(verse, selectedVerses.isNotEmpty()) {
+                                            detectTapGestures(
+                                                onTap = { pos ->
+                                                    if (selectedVerses.isNotEmpty()) {
+                                                        onVerseTapped(verse)
+                                                        return@detectTapGestures
+                                                    }
+                                                    textLayoutResult?.let { layoutResult ->
+                                                        val offset = layoutResult.getOffsetForPosition(pos)
+                                                        val dictAnnotations = styledText.getStringAnnotations(tag = "DICTIONARY_WORD", start = offset, end = offset)
+                                                        if (dictAnnotations.isNotEmpty()) {
+                                                            val word = dictAnnotations.first().item
+                                                            dictionaryPopupPosition = IntOffset(
+                                                                (textWindowOffset.x + pos.x).roundToInt(),
+                                                                (textWindowOffset.y + pos.y).roundToInt() - 100
+                                                            )
+                                                            onVerseSelected(verse.number)
+                                                            scope.launch {
+                                                                val def = DictionaryRepository.findDefinition(word)
+                                                                if (def != null) {
+                                                                    showDictionaryWord = word
+                                                                    dictionaryDefinition = def
+                                                                } else {
+                                                                    showDictionaryWord = word
+                                                                    dictionaryDefinition = "Не знайдено у словнику."
+                                                                }
+                                                            }
+                                                            return@detectTapGestures
+                                                        }
+
+                                                        val annotations = styledText.getStringAnnotations(tag = "COMMENTARY_MARKER", start = offset, end = offset)
+                                                        if (annotations.isNotEmpty()) {
+                                                            val markerId = annotations.first().item
+                                                            if (commentarySource != null) {
+                                                                markerNotePosition = IntOffset(
+                                                                    (textWindowOffset.x + pos.x).roundToInt(),
+                                                                    (textWindowOffset.y + pos.y).roundToInt() - 300
+                                                                )
+                                                                scope.launch {
+                                                                    try {
+                                                                        val note = getCommentaryForMarker(selectedBook.id, item.chapter, verse.number, markerId, commentarySource)
+                                                                        showMarkerNote = note ?: "Примітку не знайдено."
+                                                                    } catch (_: Exception) {
+                                                                        showMarkerNote = "Цей переклад не підтримує примітки."
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
+                                                },
+                                                onLongPress = { _ ->
+                                                    onVerseLongPressed(verse)
+                                                    showMarkerNote = null
+                                                    showDictionaryWord = null
+                                                    dictionaryDefinition = null
+                                                },
+                                                onDoubleTap = { pos ->
+                                                    if (selectedVerses.isNotEmpty()) return@detectTapGestures
+                                                    textLayoutResult?.let { layoutResult ->
+                                                        val offset = layoutResult.getOffsetForPosition(pos)
+                                                        val annotations = styledText.getStringAnnotations(tag = "STRONG", start = offset, end = offset)
+                                                        if (annotations.isNotEmpty()) {
+                                                            val code = annotations.first().item
+                                                            val normalizedCode = normalizeStrongCode(code.replace("(", "").replace(")", ""))
+                                                            onDoubleTapStrong(verse, normalizedCode)
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                        },
-                                        onLongPress = { _ ->
-                                            onVerseLongPressed(verse)
-                                            showMarkerNote = null
-                                            showDictionaryWord = null
-                                            dictionaryDefinition = null
-                                        },
-                                        onDoubleTap = { pos ->
-                                            if (selectedVerses.isNotEmpty()) return@detectTapGestures
-                                            textLayoutResult?.let { layoutResult ->
-                                                val offset = layoutResult.getOffsetForPosition(pos)
-                                                val annotations = styledText.getStringAnnotations(tag = "STRONG", start = offset, end = offset)
-                                                if (annotations.isNotEmpty()) {
-                                                    val code = annotations.first().item
-                                                    val normalizedCode = normalizeStrongCode(code.replace("(", "").replace(")", ""))
-                                                    onDoubleTapStrong(verse, normalizedCode)
-                                                }
-                                            }
+                                            )
                                         }
-                                    )
-                                }
-                        )
+                                )
+                            }
+                        }
                     }
                 }
             }
