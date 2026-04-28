@@ -117,19 +117,19 @@ fun BibleReaderScreen(
                                     append(" ${item.chapter}")
                                 }
                             }
-                            var headerLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-                            var headerWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                            val headerLayoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
+                            val headerWindowOffset = remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                             Text(
                                 text = headerText,
                                 style = MaterialTheme.typography.headlineMedium,
                                 modifier = Modifier.padding(vertical = 16.dp)
                                     .onGloballyPositioned { coords ->
-                                        headerWindowOffset = coords.positionInWindow()
+                                        headerWindowOffset.value = coords.positionInWindow()
                                     }
                                     .pointerInput(hasDictRef) {
                                         if (hasDictRef) {
                                             detectTapGestures(onTap = { pos ->
-                                                headerLayoutResult?.let { layout ->
+                                                headerLayoutResult.value?.let { layout ->
                                                     val offset = layout.getOffsetForPosition(pos)
                                                     val annotations = headerText.getStringAnnotations("DICTIONARY_WORD", offset, offset)
                                                     if (annotations.isNotEmpty()) {
@@ -137,8 +137,8 @@ fun BibleReaderScreen(
                                                         scope.launch {
                                                             val def = DictionaryRepository.findDefinition(word)
                                                             dictionaryPopupPosition = IntOffset(
-                                                                (headerWindowOffset.x + pos.x).roundToInt(),
-                                                                (headerWindowOffset.y + pos.y).roundToInt() - 300
+                                                                (headerWindowOffset.value.x + pos.x).roundToInt(),
+                                                                (headerWindowOffset.value.y + pos.y).roundToInt() - 300
                                                             )
                                                             showDictionaryWord = word
                                                             dictionaryDefinition = def ?: "Не знайдено у словнику."
@@ -148,7 +148,7 @@ fun BibleReaderScreen(
                                             })
                                         }
                                     },
-                                onTextLayout = { headerLayoutResult = it },
+                                onTextLayout = { headerLayoutResult.value = it },
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -162,15 +162,15 @@ fun BibleReaderScreen(
 
                                 val rawStyledText = "$displayLabel  ${verse.text}"
                                 val styledText = remember(rawStyledText) { parseBibleText(rawStyledText) }
-                                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-                                var textWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                                val textLayoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
+                                val textWindowOffset = remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
 
                                 val isSelected = verse in selectedVerses
 
                                 Text(
                                     text = styledText,
                                     style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp.times(fontSizeScale)),
-                                    onTextLayout = { textLayoutResult = it },
+                                    onTextLayout = { textLayoutResult.value = it },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 6.dp, horizontal = 4.dp)
@@ -180,7 +180,7 @@ fun BibleReaderScreen(
                                             shape = RoundedCornerShape(4.dp)
                                         )
                                         .onGloballyPositioned { coords ->
-                                            textWindowOffset = coords.positionInWindow()
+                                            textWindowOffset.value = coords.positionInWindow()
                                         }
                                         .pointerInput(verse, selectedVerses.isNotEmpty()) {
                                             detectTapGestures(
@@ -189,14 +189,14 @@ fun BibleReaderScreen(
                                                         onVerseTapped(verse)
                                                         return@detectTapGestures
                                                     }
-                                                    textLayoutResult?.let { layoutResult ->
+                                                    textLayoutResult.value?.let { layoutResult ->
                                                         val offset = layoutResult.getOffsetForPosition(pos)
                                                         val dictAnnotations = styledText.getStringAnnotations(tag = "DICTIONARY_WORD", start = offset, end = offset)
                                                         if (dictAnnotations.isNotEmpty()) {
                                                             val word = dictAnnotations.first().item
                                                             dictionaryPopupPosition = IntOffset(
-                                                                (textWindowOffset.x + pos.x).roundToInt(),
-                                                                (textWindowOffset.y + pos.y).roundToInt() - 100
+                                                                (textWindowOffset.value.x + pos.x).roundToInt(),
+                                                                (textWindowOffset.value.y + pos.y).roundToInt() - 100
                                                             )
                                                             onVerseSelected(verse.number)
                                                             scope.launch {
@@ -217,8 +217,8 @@ fun BibleReaderScreen(
                                                             val markerId = annotations.first().item
                                                             if (commentarySource != null) {
                                                                 markerNotePosition = IntOffset(
-                                                                    (textWindowOffset.x + pos.x).roundToInt(),
-                                                                    (textWindowOffset.y + pos.y).roundToInt() - 300
+                                                                    (textWindowOffset.value.x + pos.x).roundToInt(),
+                                                                    (textWindowOffset.value.y + pos.y).roundToInt() - 300
                                                                 )
                                                                 scope.launch {
                                                                     try {
@@ -240,7 +240,7 @@ fun BibleReaderScreen(
                                                 },
                                                 onDoubleTap = { pos ->
                                                     if (selectedVerses.isNotEmpty()) return@detectTapGestures
-                                                    textLayoutResult?.let { layoutResult ->
+                                                    textLayoutResult.value?.let { layoutResult ->
                                                         val offset = layoutResult.getOffsetForPosition(pos)
                                                         val annotations = styledText.getStringAnnotations(tag = "STRONG", start = offset, end = offset)
                                                         if (annotations.isNotEmpty()) {

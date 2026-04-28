@@ -323,11 +323,6 @@ fun App(initialScrollIndex: Int = 0) {
                         val prependCount = newItems.size
                         chapterItems = newItems + chapterItems
                         firstLoadedChapter = startCh
-                        // Adjust scroll position to compensate for prepended items
-                        listState.scrollToItem(
-                            listState.firstVisibleItemIndex + prependCount,
-                            listState.firstVisibleItemScrollOffset
-                        )
                     }
                 }
         }

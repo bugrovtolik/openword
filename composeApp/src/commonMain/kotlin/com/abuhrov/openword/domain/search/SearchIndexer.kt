@@ -24,6 +24,19 @@ object SearchIndexer {
 
     private class VerseData(val bookId: Long, val bookName: String, val chapter: Long, val verseNumber: Long, val text: String)
 
+    private class LongArrayList(capacity: Int = 10) {
+        var data = LongArray(capacity)
+        var size = 0
+        fun add(element: Long) {
+            if (size > 0 && data[size - 1] == element) return
+            if (size == data.size) {
+                data = data.copyOf(data.size * 2)
+            }
+            data[size++] = element
+        }
+        fun toLongArray() = data.copyOf(size)
+    }
+
     suspend fun buildIndex(bible: Bible, translationId: String) {
         mutex.withLock {
             if (isBuilt && currentBibleId == translationId) return
@@ -35,7 +48,7 @@ object SearchIndexer {
         }
 
         withContext(Dispatchers.Default) {
-            val localIndex = mutableMapOf<String, MutableSet<Long>>()
+            val localIndex = mutableMapOf<String, LongArrayList>()
             val localVerseCache = mutableMapOf<Long, VerseData>()
             
             val books = bible.books
@@ -59,8 +72,8 @@ object SearchIndexer {
                         for (w in words) {
                             if (w.length < 3) continue
                             val word = w.lowercase()
-                            val set = localIndex.getOrPut(word) { mutableSetOf() }
-                            set.add(verseId)
+                            val list = localIndex.getOrPut(word) { LongArrayList() }
+                            list.add(verseId)
                         }
                     }
                 }
@@ -68,8 +81,8 @@ object SearchIndexer {
 
             // Convert to primitive arrays
             val finalIndex = mutableMapOf<String, LongArray>()
-            for ((word, verseSet) in localIndex) {
-                finalIndex[word] = verseSet.toLongArray()
+            for ((word, list) in localIndex) {
+                finalIndex[word] = list.toLongArray()
             }
 
             mutex.withLock {

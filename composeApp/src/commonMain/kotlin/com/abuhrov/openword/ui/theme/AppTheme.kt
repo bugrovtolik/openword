@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
 
 @Composable
@@ -12,8 +13,9 @@ fun AppTheme(
     currentFont: FontFamily?,
     content: @Composable () -> Unit
 ) {
-    val appTypography = Typography().run {
-        val fontFamily = currentFont ?: FontFamily.Default
+    val appTypography = remember(currentFont, fontSizeScale) {
+        Typography().run {
+            val fontFamily = currentFont ?: FontFamily.Default
         copy(
             displayLarge = displayLarge.copy(fontFamily = fontFamily, fontSize = displayLarge.fontSize * fontSizeScale),
             displayMedium = displayMedium.copy(fontFamily = fontFamily, fontSize = displayMedium.fontSize * fontSizeScale),
@@ -31,6 +33,7 @@ fun AppTheme(
             labelMedium = labelMedium.copy(fontFamily = fontFamily, fontSize = labelMedium.fontSize * fontSizeScale),
             labelSmall = labelSmall.copy(fontFamily = fontFamily, fontSize = labelSmall.fontSize * fontSizeScale)
         )
+        }
     }
 
     MaterialTheme(
