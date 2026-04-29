@@ -7,8 +7,23 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
     <link rel="manifest" href="manifest.json">
-    <link id="ios-pwa-icon-light" rel="apple-touch-icon" href="icons/icon-512.png">
-    <link id="ios-pwa-icon-dark" rel="apple-touch-icon" href="icons/icon-dark-512.png" media="(prefers-color-scheme: dark)">
+    <!-- iOS does not support media queries for apple-touch-icon. Dynamic update is required. -->
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="icons/icon-512.png">
+    <script>
+        (function() {
+            function updateAppleIcon() {
+                var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var iconEl = document.getElementById('apple-touch-icon');
+                if (iconEl) {
+                    iconEl.href = isDark ? 'icons/icon-dark-512.png' : 'icons/icon-512.png';
+                }
+            }
+            updateAppleIcon();
+            if (window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateAppleIcon);
+            }
+        })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
