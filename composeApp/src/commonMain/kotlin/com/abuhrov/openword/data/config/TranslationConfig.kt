@@ -19,6 +19,7 @@ val availableTranslations = listOf(
     Translation("HOM", "Іван Хоменко", "translations/HOM.SQLite3"),
     Translation("UKRK", "Куліша, Пулюя та Нечуя-Левицького", "translations/UKRK.SQLite3"),
     Translation("KJV", "King James", "translations/KJV.SQLite3"),
+    Translation("ESV", "English Standard Version", "translations/ESV.SQLite3"),
     Translation("МСЦ'22", "МСЦ ЄХБ", "translations/MSC.SQLite3"),
     Translation(
         id = "UBIO",

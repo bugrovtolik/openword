@@ -76,7 +76,7 @@ fun CompareTranslationsPopup(
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
-                                        text = item.translation.displayName,
+                                        text = item.translation.run { "$id — $displayName" },
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,

@@ -45,7 +45,8 @@ fun VocabularyPopup(
     onDismiss: () -> Unit
 ) {
     var aiLinkedWords by remember(verseLexiconPayload) { mutableStateOf<List<AILinkedWord>?>(null) }
-    var isLinking by remember(verseLexiconPayload) { mutableStateOf(verseLexiconPayload != null && aiLinkedWords == null) }
+    var isLinking by remember(verseLexiconPayload) { mutableStateOf(false) }
+    var retryMappingTrigger by remember { mutableStateOf(0) }
 
     var clickedLinkedWord by remember { mutableStateOf<AILinkedWord?>(null) }
 
@@ -111,13 +112,17 @@ fun VocabularyPopup(
         }
     }
 
-    LaunchedEffect(verseLexiconPayload) {
-        if (verseLexiconPayload != null && aiLinkedWords == null) {
+    LaunchedEffect(verseLexiconPayload, retryMappingTrigger) {
+        if (verseLexiconPayload != null && (aiLinkedWords == null || retryMappingTrigger > 0)) {
             isLinking = true
             try {
                 // Strip accents for AI mapping to avoid fragmentation
                 val cleanedVerse = verseLexiconPayload.verse.replace("\u0301", "").replace("\u0300", "").replace("́", "")
                 val cleanedPayload = verseLexiconPayload.copy(verse = cleanedVerse)
+
+                val retryHint = if (retryMappingTrigger > 0) {
+                    "\n\nNote: The previous mapping attempt might have been incorrect. Please re-evaluate carefully and try again to be more accurate."
+                } else ""
 
                 val prompt = """
 Task: Map each Ukrainian word in 'verse' to exactly one Strong's tag from 'source'.
@@ -144,7 +149,7 @@ Rules:
 7. If a Ukrainian word has no matching tag, omit it from the output.
 
 Output: Return ONLY a JSON array: [{"word": "І", "tags": "H9002"}, {"word": "земля", "tags": "H0776G"}]
-Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPayload)}
+Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPayload)}$retryHint
                 """.trimIndent()
                 val response = withContext(Dispatchers.Default) {
                     GroqApiClient.generateResponse(prompt)
@@ -244,7 +249,15 @@ Input JSON: ${json.encodeToString(VerseLexiconPayload.serializer(), cleanedPaylo
                     Column {
                         Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(clickedLinkedWord!!.word, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                            IconButton(onClick = { clickedLinkedWord = null }) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    retryMappingTrigger++
+                                    clickedLinkedWord = null
+                                }) {
+                                    Text("Переприв'язати AI", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                                IconButton(onClick = { clickedLinkedWord = null }) { Icon(Icons.Default.Close, "Закрити", tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+                            }
                         }
 
                         if (versePreviewRef != null) {
