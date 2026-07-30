@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openword-1777468342547';
+const CACHE_NAME = 'openword-1785418538415';
 const CRITICAL_ASSETS = [
   "",
   "236.js",
@@ -32,6 +32,7 @@ const LAZY_ASSETS = [
   "composeResources/openword.composeapp.generated.resources/files/commentaries/macarthur.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/crossreferences/GRM.crossreferences.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/translations/CUV.SQLite3",
+  "composeResources/openword.composeapp.generated.resources/files/translations/ESV.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/translations/GRM.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/translations/HOM.SQLite3",
   "composeResources/openword.composeapp.generated.resources/files/translations/KJV.SQLite3",
